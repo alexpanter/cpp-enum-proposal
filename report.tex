@@ -29,16 +29,16 @@ answers, are found here:
 Following the apparent interest in the subject, this proposal aims to bring
 into the C++ ($>$= 20) standard library improved \textit{compile-time} support
 for scoped enums (as signified by "\texttt{enum class}"), in particular
-enumeration and cast to string or underlying type. As such, \texttt{type\_traits}
+enumeration, and cast to string or underlying type. As such, \texttt{type\_traits}
 or other RTTI-techniques will not be considered.
 
 For maintaining backwards-compatibility with C, this proposal \textit{only}
 targets the scoped enums, and \textbf{not} the C-style (unscoped) enums.
 
 
-\subsection{Enumeration}
+\section{Enumeration}
 
-Sometimes it may be desirable to enumerate through an enumeration to know its
+Sometimes it may be desirable to enumerate through a scoped enum to know its
 values. One particular use case is when an enum is used as a template parameter:
 
 \begin{alltt}\footnotesize
@@ -53,19 +53,19 @@ private:
 \};
 
 void fill(foo<auto T, auto V>& f) \{
-  auto begin = std::enum\_iterator<T, V>.begin();
-  auto end = std::enum\_iterator<T, V>.begin();
+  auto begin = std::enum\_iterator<T>.cbegin();
+  auto end = std::enum\_iterator<T>.cend();
   for (auto it = begin; it != end; it++) { f.add\_value(*it, V\{\}); }
 
   // Alternatively:
-  for (auto t : std::enum\_values\_v<T, V>) { f.add\_value(t, V\{\}); }
+  for (auto t : std::enum\_values\_v<T>) { f.add\_value(t, V\{\}); }
 \}
 \end{alltt}
 
 In such a system, we may maintain a dictionary of various enum members and bind
 them to a particular type \texttt{"V"}.
 
-\subsection{Underlying type}
+\section{Underlying type}
 
 In current C++ standard, when needing to compare an enum value with its
 underlying type, a relatively verbose code expression is required:
@@ -73,7 +73,7 @@ underlying type, a relatively verbose code expression is required:
 \begin{alltt}\footnotesize
 // Check if enum value is 0
 auto my\_enum\_value = MyEnum::Value;
-bool is\_zero = static\_cast<std::underlying\_type\_t<T>>(my\_enum\_value) == 0;
+bool is\_zero = static\_cast<std::underlying\_type\_t<MyEnum>>(my\_enum\_value) == 0;
 \end{alltt}
 
 \noindent
@@ -114,7 +114,7 @@ static\_assert(newColor == std::nullopt);
 
 
 
-\subsection{Scoped enum cardinality}
+\section{Scoped enum cardinality}
 
 In some usage scenarios it can be useful to retrieve the number of values
 declared inside a scoped enum. Current possibilities includes only hacks,
@@ -129,7 +129,7 @@ static\_assert(std::enum\_cardinality\_v<Weekdays> == 7);
 
 
 
-\subsection{String representation}
+\section{String representation}
 
 Sometimes, for debugging purposes, we might want to be able to output to a
 terminal the string name of an enum value. Instead of creating such a function
@@ -137,19 +137,48 @@ ourselves and maintaining it when new values are added to the enum or renamed,
 better yet to let the compiler do the heavy-lifting for us. Proposed syntax:
 
 \begin{alltt}\footnotesize
-enum class Color \{
-  red,
-  green,
-  blue
-\};
+enum class Color \{ red, green, blue \};
 
-std::cout << std::enum\_string<Color::red> << std::endl;
+// Two alternatives:
+std::cout << std::enum\_string<Color::red>() << std::endl;
+std::cout << std::enum\_string\_v<Color::red> << std::endl;
+\end{alltt}
+
+
+\subsection{Runtime deduction (Superfluous chapter??)}
+
+The example above assumes we know which enum value we want to print at
+compile-time, but this is something we might not always know. So the following
+strategy is proposed:
+
+\begin{enumerate}
+\item We use \texttt{std::enum\_string<T>(T t)} with some value, e.g. as input
+  to a function.
+\item The compiler detects this use and generates a lookup table (ie.
+  \texttt{const char**}) inside the readonly section of our target binary.
+\item At runtime, with little overhead, we make a lookup into this table and
+  retrieves our string.
+\end{enumerate}
+
+\noindent
+Creating such a table requires that each enum value has a certain
+\textit{position} within its containing scoped enum, which we may query.
+This would necessitate the following interface:
+
+\begin{alltt}\footnotesize
+namespace std \{
+  template<enum\_type T> size\_t enum\_position(T t);
+  template<enum\_type> const char* enum\_indexed\_string(integral auto i);
+
+  template<>
+  struct enum\_string<enum\_type T> \{
+    const char* operator()(T t);
+  \};
+\}
 \end{alltt}
 
 \noindent
-\textit{Possibly}, if all the names of a scoped enum could be generated
-compile-time (ie. \texttt{std::enum\_string<T>} is being used), then we could
-also create a function:
+The following code examplifies the usage:
 
 \begin{alltt}\footnotesize
 void printColor(Color c) \{
@@ -166,7 +195,7 @@ printColor(Color::red); // Should output "<namespace::>Color::red"
 
 
 \newpage
-\subsection{Overview}
+\section{Overview}
 
 This is the complete list of proposed functions, types, and meta-functions:
 
@@ -174,8 +203,8 @@ This is the complete list of proposed functions, types, and meta-functions:
 // header "<experimental/scoped\_enum>" -- or -- "<experimental/enum>"
 
 // Alternatively:
-export module std : scoped\_enum;
-export module std : enum;
+export module std.scoped\_enum; // -- or --
+export module std.enum;
 
 namespace std \{
 
@@ -229,7 +258,7 @@ namespace std \{
     return stream << enum\_string<T>(t);
   \}
 
-\}
+\} // namespace std
 
 // Typesafe cast from underlying value to declared scoped enum value,
 // including a check for whether the provided value is valid.
