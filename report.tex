@@ -1,7 +1,11 @@
-\documentclass[a4paper]{article}
+\documentclass[a4paper, 12pt]{article}
+
+\usepackage[margin={1.1in, 1.0in}]{geometry}
+\usepackage{layout}
 
 \usepackage{alltt}
 \usepackage[utf8]{inputenc}
+\usepackage{hyperref}
 
 \title{C++ Scoped Enum proposal}
 \author{\small Alexander Christensen}
@@ -10,13 +14,26 @@
 \begin{document}
 \maketitle
 
-Following discussions on StackOverflow (<insert links>), it seems that there has
-been great interest in the subject of enums in C++. This proposal aims to being
-a discussion of improved \textit{compile-time} support for enums, in particular
-enumeration and cast to underlying type.
+Following discussions on StackOverflow, and the interest generated, it seems
+that there could be motivation for extending the scoped enums to allow for
+more flexible operations. Such questions, and their often vividly imaginary
+answers, are found here:
+
+\begin{enumerate}
+\item \href{https://stackoverflow.com/questions/11421432/how-can-i-output-the-value-of-an-enum-class-in-c11}{how-can-i-output-the-value-of-an-enum-class-in-c11}
+\item \href{https://stackoverflow.com/questions/1390703/enumerate-over-an-enum-in-c}{enumerate-over-an-enum-in-c}
+\item \href{https://stackoverflow.com/questions/6281461/enum-to-string-c}{enum-to-string-c}
+\item \href{https://stackoverflow.com/questions/201593/is-there-a-simple-way-to-convert-c-enum-to-string}{is-there-a-simple-way-to-convert-c-enum-to-string}
+\end{enumerate}
+
+Following the apparent interest in the subject, this proposal aims to bring
+into the C++ ($>$= 20) standard library improved \textit{compile-time} support
+for scoped enums (as signified by "\texttt{enum class}"), in particular
+enumeration and cast to string or underlying type. As such, \texttt{type\_traits}
+or other RTTI-techniques will not be considered.
 
 For maintaining backwards-compatibility with C, this proposal \textit{only}
-targets the scoped enums, identified by "\texttt{enum class <...>}".
+targets the scoped enums, and \textbf{not} the C-style (unscoped) enums.
 
 
 \subsection{Enumeration}
@@ -25,7 +42,7 @@ Sometimes it may be desirable to enumerate through an enumeration to know its
 values. One particular use case is when an enum is used as a template parameter:
 
 \begin{alltt}\footnotesize
-template<enum T, typename V>
+template<"enum" T, typename V>
 requires std::is\_default\_constructible\_v<V>
 class foo \{
 public:
@@ -38,10 +55,10 @@ private:
 void fill(foo<auto T, auto V>& f) \{
   auto begin = std::enum\_iterator<T, V>.begin();
   auto end = std::enum\_iterator<T, V>.begin();
-  for (auto it = begin; it != end; it++) { f.add\_value(*it, V{}); }
+  for (auto it = begin; it != end; it++) { f.add\_value(*it, V\{\}); }
 
   // Alternatively:
-  for (auto t : std::enum\_values\_v<T, V>) { f.add\_value(t, V{}); }
+  for (auto t : std::enum\_values\_v<T, V>) { f.add\_value(t, V\{\}); }
 \}
 \end{alltt}
 
@@ -55,18 +72,18 @@ underlying type, a relatively verbose code expression is required:
 
 \begin{alltt}\footnotesize
 // Check if enum value is 0
-auto enum\_value = MyEnum::Value;
-bool is\_zero = static\_cast<std::underlying\_type\_t<T>>(enum\_value) == 0;
+auto my\_enum\_value = MyEnum::Value;
+bool is\_zero = static\_cast<std::underlying\_type\_t<T>>(my\_enum\_value) == 0;
 \end{alltt}
 
 \noindent
 This document proposes a simpler syntax. Assume we have a definition
-\texttt{enum class MyEnum}:
+"\texttt{enum class MyEnum}":
 
 \begin{alltt}\footnotesize
 // Check if enum value is 0
-auto enum\_value = MyEnum::Value;
-bool is\_zero = std::enum\_value<MyEnum::Value> == 0;
+auto my\_enum\_value = MyEnum::Value;
+bool is\_zero = std::enum\_value<my\_enum\_value> == 0;
 \end{alltt}
 
 \noindent
@@ -79,8 +96,8 @@ our expression above in much simpler terms:
 
 \begin{alltt}\footnotesize
 // Check if enum value is 0
-auto enum\_value = MyEnum::Value
-bool is\_zero = (enum\_value == 0);
+auto my\_enum\_value = MyEnum::Value;
+bool is\_zero = (my\_enum\_value == 0);
 \end{alltt}
 
 \noindent
@@ -89,49 +106,140 @@ we need to make sure that our input value does actually represent a valid
 enum value. Additionally, this document proposes the following syntax:
 
 \begin{alltt}\footnotesize
-namespace std \{
-  template<enum T, typename V>
-  requires is\_integral\_v<V>
-  optional<T> enum\_cast(V v) \{
-    T out;
-    if (enum\_try\_cast<T, V>(&out, v)) return out;
-    else return nullopt;
-  \}
-\}
+enum class Color : int \{ red = 0, green, blue \};
+
+optional<Color> newColor = enum\_cast<Color>(3);
+static\_assert(newColor == std::nullopt);
 \end{alltt}
 
 
+
+\subsection{Scoped enum cardinality}
+
+In some usage scenarios it can be useful to retrieve the number of values
+declared inside a scoped enum. Current possibilities includes only hacks,
+so the following syntax is proposed:
+
+\begin{alltt}\footnotesize
+enum class Weekdays \{ monday, tuesday /*, etc. */ \};
+
+// NOTE: Possible alternative namings - "enum\_count\_v" or "enum\_size\_v".
+static\_assert(std::enum\_cardinality\_v<Weekdays> == 7);
+\end{alltt}
+
+
+
+\subsection{String representation}
+
+Sometimes, for debugging purposes, we might want to be able to output to a
+terminal the string name of an enum value. Instead of creating such a function
+ourselves and maintaining it when new values are added to the enum or renamed,
+better yet to let the compiler do the heavy-lifting for us. Proposed syntax:
+
+\begin{alltt}\footnotesize
+enum class Color \{
+  red,
+  green,
+  blue
+\};
+
+std::cout << std::enum\_string<Color::red> << std::endl;
+\end{alltt}
+
+\noindent
+\textit{Possibly}, if all the names of a scoped enum could be generated
+compile-time (ie. \texttt{std::enum\_string<T>} is being used), then we could
+also create a function:
+
+\begin{alltt}\footnotesize
+void printColor(Color c) \{
+  std::cout << std::enum\_string<Color>(c) << std::endl;
+\}
+
+// Alternatively, if "std::cout" is provided with a meta-function overload:
+void printColor(Color c) \{ std::cout << c << std::endl; \}
+
+// Testing:
+printColor(Color::red); // Should output "<namespace::>Color::red"
+\end{alltt}
+
+
+
+\newpage
 \subsection{Overview}
 
 This is the complete list of proposed functions, types, and meta-functions:
 
 \begin{alltt}\footnotesize
-// header "experimental/scoped\_enum"
+// header "<experimental/scoped\_enum>" -- or -- "<experimental/enum>"
 
 // Alternatively:
-export module std.scoped\_enum;
+export module std : scoped\_enum;
+export module std : enum;
 
 namespace std \{
 
   // Evaluates whether T is the name of a declared scoped enum type
   template<typename T>
-  concept enum\_type;
+  concept enum\_type; // = /* implementation uncertain */
+
+  // Checks if "V" is the underlying type for a declared scoped enum "T".
+  template<enum\_type T, is\_integral\_v V>
+  concept enum\_has\_type = std::is\_same\_v<std::underlying\_type\_t<T>, V>;
 
   // A forward-iterator of all values inside a declared scoped enum
-  template<typename T, is\_integral\_v V>
+  template<enum\_type T>
   struct enum\_iterator;
 
   // A container with all values inside a declared scoped enum,
   // with methods `begin()`, `end()`, `cbegin()`, and `cend()` for
-  // supporting forward iterating through the values.
-  template<typename T, is\_integral\_v V>
+  // supporting forward iterating through the values by using the
+  // "enum\_iterator" defined above.
+  template<enum\_type T>
   struct enum\_values;
 
-  enum\_value
+  // Retrieves the underlying value represented by an enum value,
+  // similar to "static\_cast<underlying\_type\_t<T>".
+  template<enum\_type T, is\_integral\_v V>
+  V enum\_value(T t);
 
+  template<enum\_type T>
+  bool enum\_try\_cast(integral auto v); // = /* implementation uncertain */
 
+  // Retrieve the cardinality (ie. number of values) inside a declared
+  // scoped enum.
+  template<enum\_type T>
+  struct std::enum\_cardinality \{ constexpr size\_t value; \};
+
+  template<enum\_type T>
+  size\_t std::enum\_cardinality\_v;
+
+  // Retrieve a fully-qualified string representation of the provided
+  // scoped enum value.
+  template<enum\_type T>
+  const char* enum\_string(T t); // = /* implementation compiler-specific */
+
+  // Compare a scoped enum value with its underlying type (spaceship-operator)
+  template<enum\_type T, is\_integral\_v V>
+  weak\_ordering operator<=>(T lhs, V v);
+
+  // Stream overload
+  template<enum\_type T>
+  ostream& operator<<(ostream& stream, T t) \{
+    return stream << enum\_string<T>(t);
+  \}
 
 \}
+
+// Typesafe cast from underlying value to declared scoped enum value,
+// including a check for whether the provided value is valid.
+template<std::enum\_type T>
+std::optional<T> enum\_cast(std::integral auto v) \{
+  T out;
+  if (std::enum\_try\_cast<T>(&out, v)) return out;
+  else return std::nullopt;
+\}
+
 \end{alltt}
 
 
