@@ -1,0 +1,140 @@
+\documentclass[a4paper]{article}
+
+\usepackage{alltt}
+\usepackage[utf8]{inputenc}
+
+\title{C++ Scoped Enum proposal}
+\author{\small Alexander Christensen}
+\date{\vspace{-2mm}\small \today}
+
+\begin{document}
+\maketitle
+
+Following discussions on StackOverflow (<insert links>), it seems that there has
+been great interest in the subject of enums in C++. This proposal aims to being
+a discussion of improved \textit{compile-time} support for enums, in particular
+enumeration and cast to underlying type.
+
+For maintaining backwards-compatibility with C, this proposal \textit{only}
+targets the scoped enums, identified by "\texttt{enum class <...>}".
+
+
+\subsection{Enumeration}
+
+Sometimes it may be desirable to enumerate through an enumeration to know its
+values. One particular use case is when an enum is used as a template parameter:
+
+\begin{alltt}\footnotesize
+template<enum T, typename V>
+requires std::is\_default\_constructible\_v<V>
+class foo \{
+public:
+  bool has\_value(T t) \{ return mEnumMap.contains(t); \}
+  void add\_value(T t, V&& v) \{ mEnumMap[t] = v; \}
+private:
+  std::map<T, V> mEnumMap;
+\};
+
+void fill(foo<auto T, auto V>& f) \{
+  auto begin = std::enum\_iterator<T, V>.begin();
+  auto end = std::enum\_iterator<T, V>.begin();
+  for (auto it = begin; it != end; it++) { f.add\_value(*it, V{}); }
+
+  // Alternatively:
+  for (auto t : std::enum\_values\_v<T, V>) { f.add\_value(t, V{}); }
+\}
+\end{alltt}
+
+In such a system, we may maintain a dictionary of various enum members and bind
+them to a particular type \texttt{"V"}.
+
+\subsection{Underlying type}
+
+In current C++ standard, when needing to compare an enum value with its
+underlying type, a relatively verbose code expression is required:
+
+\begin{alltt}\footnotesize
+// Check if enum value is 0
+auto enum\_value = MyEnum::Value;
+bool is\_zero = static\_cast<std::underlying\_type\_t<T>>(enum\_value) == 0;
+\end{alltt}
+
+\noindent
+This document proposes a simpler syntax. Assume we have a definition
+\texttt{enum class MyEnum}:
+
+\begin{alltt}\footnotesize
+// Check if enum value is 0
+auto enum\_value = MyEnum::Value;
+bool is\_zero = std::enum\_value<MyEnum::Value> == 0;
+\end{alltt}
+
+\noindent
+Seemingly, this does not yield much benefit since we just removed a
+\texttt{static\_cast} and replaced one template meta-function with another.
+But without the \texttt{static\_cast} we can have the compiler auto-generate
+an implicit operator overload, similar to "\texttt{ToInt()}" found in some
+object-oriented languages. And with that in mind, we should be able to write
+our expression above in much simpler terms:
+
+\begin{alltt}\footnotesize
+// Check if enum value is 0
+auto enum\_value = MyEnum::Value
+bool is\_zero = (enum\_value == 0);
+\end{alltt}
+
+\noindent
+Sometimes, we may also wish to convert the other way around. But for this
+we need to make sure that our input value does actually represent a valid
+enum value. Additionally, this document proposes the following syntax:
+
+\begin{alltt}\footnotesize
+namespace std \{
+  template<enum T, typename V>
+  requires is\_integral\_v<V>
+  optional<T> enum\_cast(V v) \{
+    T out;
+    if (enum\_try\_cast<T, V>(&out, v)) return out;
+    else return nullopt;
+  \}
+\}
+\end{alltt}
+
+
+\subsection{Overview}
+
+This is the complete list of proposed functions, types, and meta-functions:
+
+\begin{alltt}\footnotesize
+// header "experimental/scoped\_enum"
+
+// Alternatively:
+export module std.scoped\_enum;
+
+namespace std \{
+
+  // Evaluates whether T is the name of a declared scoped enum type
+  template<typename T>
+  concept enum\_type;
+
+  // A forward-iterator of all values inside a declared scoped enum
+  template<typename T, is\_integral\_v V>
+  struct enum\_iterator;
+
+  // A container with all values inside a declared scoped enum,
+  // with methods `begin()`, `end()`, `cbegin()`, and `cend()` for
+  // supporting forward iterating through the values.
+  template<typename T, is\_integral\_v V>
+  struct enum\_values;
+
+  enum\_value
+
+
+
+\}
+\end{alltt}
+
+
+
+
+\end{document}
