@@ -2,17 +2,40 @@
 
 \usepackage[margin={1.1in, 1.0in}]{geometry}
 \usepackage{layout}
+\usepackage[bottom]{footmisc}
+\usepackage{fancyhdr}
+\usepackage{lastpage}
 
 \usepackage{alltt}
 \usepackage[utf8]{inputenc}
 \usepackage{hyperref}
+\usepackage{nameref}
 
-\title{C++ Scoped Enum proposal}
+\makeatletter
+\newcommand*{\currentname}{\@currentlabelname}
+\makeatother
+
+\newcommand{\mytitle}{C++ Scoped Enum proposal}
+\title{\mytitle}
 \author{\small Alexander Christensen}
 \date{\vspace{-2mm}\small \today}
 
+\pagestyle{fancy}
+%\fancyhf{}
+\lhead{\currentname}
+\rhead{\mytitle}
+\cfoot{\footnotesize Page \thepage \hspace{1pt} of \pageref{LastPage}}
+
+\fancypagestyle{firststyle}
+{
+   \fancyhf{}
+   \cfoot{\footnotesize Page \thepage\ of \pageref{LastPage}}
+   \renewcommand{\headrulewidth}{0pt}
+}
+
 \begin{document}
 \maketitle
+\thispagestyle{firststyle}
 
 Following discussions on StackOverflow, and the interest generated, it seems
 that there could be motivation for extending the scoped enums to allow for
@@ -29,11 +52,54 @@ answers, are found here:
 Following the apparent interest in the subject, this proposal aims to bring
 into the C++ ($>$= 20) standard library improved \textit{compile-time} support
 for scoped enums (as signified by "\texttt{enum class}"), in particular
-enumeration, and cast to string or underlying type. As such, \texttt{type\_traits}
-or other RTTI-techniques will not be considered.
-
+enumeration, and cast to string or underlying type. As such, the
+\texttt{typeinfo}-header or other RTTI-techniques will not be considered.
 For maintaining backwards-compatibility with C, this proposal \textit{only}
 targets the scoped enums, and \textbf{not} the C-style (unscoped) enums.
+
+
+\section{Substitution failure}
+
+Since the introduction of SFINAE, we have been empowered with manual
+template-substitution control. Because this proposal targets the modern C++
+approach however, this proposal defines a concept instead. Similar to
+\texttt{typename} or \texttt{class}, we wish to perform a substitution when
+we know that a provided template-type is a scoped enum:
+
+\begin{alltt}\footnotesize
+template<typename T>
+concept std::enum\_type = /* static check to verify if T is a scoped enum */
+
+// Alternatively defined (shorter version) as
+template<typename T>
+concept std::enum;
+\end{alltt}
+
+\noindent
+We may then use this concept to constrain template-substitution:
+
+\begin{alltt}\footnotesize
+template<std::enum T>
+class MyClass \{ /* ... */ \};
+\end{alltt}
+
+\subsection{C++-23}
+
+Since C++23 adds a meta-function \texttt{std::is\_scoped\_enum}, it is
+evident that the language is already developing in the direction of this
+proposal. And as such, we would be able to trivially define our concept as
+such:
+
+\begin{alltt}\footnotesize
+template<typename T>
+concept std::enum = std::is\_scoped\_enum\_v<T>;
+\end{alltt}
+
+\noindent
+Whether this addition to the language would be useful is up for discussion.
+Arguably, having a concept could potentially provide better compiler-output
+on substitution failure.
+
 
 
 \section{Enumeration}
@@ -42,7 +108,7 @@ Sometimes it may be desirable to enumerate through a scoped enum to know its
 values. One particular use case is when an enum is used as a template parameter:
 
 \begin{alltt}\footnotesize
-template<"enum" T, typename V>
+template<std::enum T, typename V>
 requires std::is\_default\_constructible\_v<V>
 class foo \{
 public:
@@ -62,7 +128,7 @@ void fill(foo<auto T, auto V>& f) \{
 \}
 \end{alltt}
 
-In such a system, we may maintain a dictionary of various enum members and bind
+In such a system, we can maintain a dictionary of various enum members and bind
 them to a particular type \texttt{"V"}.
 
 \section{Underlying type}
@@ -87,14 +153,16 @@ bool is\_zero = std::enum\_value<my\_enum\_value> == 0;
 \end{alltt}
 
 \noindent
-Seemingly, this does not yield much benefit since we just removed a
-\texttt{static\_cast} and replaced one template meta-function with another.
-But without the \texttt{static\_cast} we can have the compiler auto-generate
-an implicit operator overload, similar to "\texttt{ToInt()}" found in some
-object-oriented languages. And with that in mind, we should be able to write
-our expression above in much simpler terms:
+This is definitely better than the first example since we have replaced
+the\\ \texttt{static\_cast<std::underlying\_type>} with a simpler interface.
+But we can do even better, especially with C++-20, if we provide an overload
+to the "spaceship"-operator (three-way comparison), for comparing an enum value
+with its underlying type:
 
 \begin{alltt}\footnotesize
+template<std::enum T>
+std::weak\_ordering operator<=>(T t, std::integral auto i);
+
 // Check if enum value is 0
 auto my\_enum\_value = MyEnum::Value;
 bool is\_zero = (my\_enum\_value == 0);
@@ -102,8 +170,10 @@ bool is\_zero = (my\_enum\_value == 0);
 
 \noindent
 Sometimes, we may also wish to convert the other way around. But for this
-we need to make sure that our input value does actually represent a valid
-enum value. Additionally, this document proposes the following syntax:
+we need to make sure that our input value can actually be used as a valid
+conversion. Thus, this document proposes an exception-safe \texttt{enum\_cast},
+similar to \texttt{dynamic\_cast} but with the added benefit of being strictly
+\textit{compile-time} evaluated:
 
 \begin{alltt}\footnotesize
 enum class Color : int \{ red = 0, green, blue \};
@@ -121,10 +191,10 @@ declared inside a scoped enum. Current possibilities includes only hacks,
 so the following syntax is proposed:
 
 \begin{alltt}\footnotesize
-enum class Weekdays \{ monday, tuesday /*, etc. */ \};
+enum class Weekday \{ monday, tuesday /*, etc. */ \};
 
 // NOTE: Possible alternative namings - "enum\_count\_v" or "enum\_size\_v".
-static\_assert(std::enum\_cardinality\_v<Weekdays> == 7);
+static\_assert(std::enum\_cardinality\_v<Weekday> == 7);
 \end{alltt}
 
 
@@ -132,65 +202,85 @@ static\_assert(std::enum\_cardinality\_v<Weekdays> == 7);
 \section{String representation}
 
 Sometimes, for debugging purposes, we might want to be able to output to a
-terminal the string name of an enum value. Instead of creating such a function
-ourselves and maintaining it when new values are added to the enum or renamed,
-better yet to let the compiler do the heavy-lifting for us. Proposed syntax:
+terminal the string name of an enum value, possibly \textit{fully-qualified}
+\footnote{Including all containing namespaces, classes, structs, or modules.}.
+Instead of creating such a function ourselves and maintaining it when new
+values are added to the enum or renamed, better yet to let the compiler do
+the heavy-lifting for us. Proposed syntax:
 
 \begin{alltt}\footnotesize
 enum class Color \{ red, green, blue \};
 
-// Two alternatives:
-std::cout << std::enum\_string<Color::red>() << std::endl;
-std::cout << std::enum\_string\_v<Color::red> << std::endl;
-\end{alltt}
-
-
-\subsection{Runtime deduction (Superfluous chapter??)}
-
-The example above assumes we know which enum value we want to print at
-compile-time, but this is something we might not always know. So the following
-strategy is proposed:
-
-\begin{enumerate}
-\item We use \texttt{std::enum\_string<T>(T t)} with some value, e.g. as input
-  to a function.
-\item The compiler detects this use and generates a lookup table (ie.
-  \texttt{const char**}) inside the readonly section of our target binary.
-\item At runtime, with little overhead, we make a lookup into this table and
-  retrieves our string.
-\end{enumerate}
-
-\noindent
-Creating such a table requires that each enum value has a certain
-\textit{position} within its containing scoped enum, which we may query.
-This would necessitate the following interface:
-
-\begin{alltt}\footnotesize
-namespace std \{
-  template<enum\_type T> size\_t enum\_position(T t);
-  template<enum\_type> const char* enum\_indexed\_string(integral auto i);
-
-  template<>
-  struct enum\_string<enum\_type T> \{
-    const char* operator()(T t);
-  \};
-\}
-\end{alltt}
-
-\noindent
-The following code examplifies the usage:
-
-\begin{alltt}\footnotesize
 void printColor(Color c) \{
-  std::cout << std::enum\_string<Color>(c) << std::endl;
+  std::cout << std::enum\_string\_v<c> << std::endl;
 \}
 
-// Alternatively, if "std::cout" is provided with a meta-function overload:
-void printColor(Color c) \{ std::cout << c << std::endl; \}
-
-// Testing:
-printColor(Color::red); // Should output "<namespace::>Color::red"
+printColor(Color::red); // Should output "Color::red"
 \end{alltt}
+
+
+\subsection{Failed runtime deduction}
+
+If converting to scoped enum from an invalid underlying type, a string with
+the text \texttt{"<null>"} could be inserted. This would only happen if the
+conversion was not performed through the safe \texttt{enum\_cast} but through
+an \textit{unsafe} C-style cast (or an unchecked \texttt{static\_cast}).\\
+
+\noindent
+Let \texttt{"\_a"} represent an integral to enum conversion which
+\textit{might not} be valid, such as \texttt{"(Color)(rand())"}. The following
+piece of code \underline{should} yield a compiler error, through either
+detectible non-\texttt{consteval} behaviour -or- compile-time detectible
+invalid conversion:
+
+\begin{alltt}\footnotesize
+// This should fail compilation:
+const char* str = std::enum\_string<Color>(\_a);
+\end{alltt}
+
+\noindent
+This would build upon the \texttt{enum\_cast} returning a valid
+\texttt{optional<T>} or through constant propagation by the compiler. In
+either case, \texttt{enum\_string\_v} should be strictly \textit{compile-time}
+evaluated. Suggested implementation is to generate a conversion table
+(\texttt{"const char**"}) inside the readonly section of the target binary.
+\footnote{TODO: Would this be a good idea?}
+
+
+\section{Enum position}
+
+In addition to a scoped enum's cardinality, this proposal also presents a
+function to get the \textit{position} of an individual enum value inside
+its declaration. This is the proposed syntax:
+
+\begin{alltt}\footnotesize
+enum class Fruit \{ banana = 1, apple = 2, orange = 4, clementine = 8 \};
+static\_assert(std::enum\_value\_v<Fruit::orange> == 4);
+static\_assert(std::enum\_position\_v<Fruit::orange> == 2);
+\end{alltt}
+
+\noindent
+This, together with \texttt{enum\_cardinality}, enables us to create
+constructions such as the following:
+
+\begin{alltt}\footnotesize
+template<std::enum\_type T>
+class EnumPriorityMapper \{
+public:
+  unsigned int GetPriority(T t) \{
+    return mPriorities[std::enum\_position\_v<t>];
+  \}
+  void SetPriority(T t, unsigned int p) \{
+    mPriorities[std::enum\_position\_v<t>] = p;
+  \}
+private:
+  unsigned int mPriorities[std::enum\_cardinality\_v<T>];
+\};
+\end{alltt}
+
+\noindent
+Since both \texttt{enum\_cardinality} and \texttt{enum\_position} are defined
+as compile-time constants, this code should never throw or index out-of-bounds.
 
 
 
