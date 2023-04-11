@@ -1,0 +1,47 @@
+%% How to compile:
+%% $ pdflatex report.tex
+%% $ bibtex report.aux
+%% $ pdflatex report.tex
+
+%% Guidelines on the ACM Latex package:
+%% https://authors.acm.org/proceedings/production-information/preparing-your-article-with-latex
+
+
+%% format options: manuscript, acmsmall, acmlarge, acmtog, sigconf, siggraph, sigplan, sigchi
+%% used formats: manuscript, sigplan
+\documentclass[
+  format=manuscript,
+  screen=true,
+  review=false,
+  nonacm=true,
+  timestamp=true,
+  balance=false]{acmart}
+\setcopyright{rightsretained}
+
+\author{Alexander Christensen}
+\title{C Scoped Enum Enhancements}
+\email{alex\_c007@hotmail.com}
+
+%% \citestyle{acmauthoryear}
+
+\begin{document}
+
+%% \abstract{
+%% This is a very abstract abstract.
+%% }
+
+\maketitle
+
+\section{The first section}
+
+Some text here...
+
+
+
+
+
+%% \bibliographystyle{ACM-Reference-Format}
+%% \bibliography{references}
+
+\end{document}
+
