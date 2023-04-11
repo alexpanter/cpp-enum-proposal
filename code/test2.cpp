@@ -12,7 +12,7 @@ public:
 	void add_value(E e, T&& t) { mEnumMap[e] = t; }
 	std::optional<T> get_value(E e) {
 		if (auto it = mEnumMap.find(e); it != mEnumMap.end()) {
-			return { it };
+			return { it->second };
 		} else { return std::nullopt; }
 	}
 private:

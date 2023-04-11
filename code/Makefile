@@ -5,7 +5,13 @@ HDR=experimental/enum
 test1: test1.cpp ${HDR}
 	${GCC} ${FLG} $< -o $@
 
-test2: test1.cpp ${HDR}
+test2: test2.cpp ${HDR}
+	${GCC} ${FLG} $< -o $@
+
+color_map: color_map.cpp ${HDR}
+	${GCC} ${FLG} $< -o $@
+
+iterate1: iterate1.cpp ${HDR}
 	${GCC} ${FLG} $< -o $@
 
 clean:
