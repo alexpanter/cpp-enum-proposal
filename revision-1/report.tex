@@ -24,6 +24,91 @@
 
 %% \citestyle{acmauthoryear}
 
+
+%% ===================== %%
+%% === CODE LISTINGS === %%
+%% ===================== %%
+\usepackage{listings}
+\usepackage{color}
+
+\definecolor{backgroundblue}{rgb}{0.93, 0.93, 1.0}
+\definecolor{mygreen}{rgb}{0,0.6,0}
+\definecolor{mygray}{rgb}{0.5,0.5,0.5}
+\definecolor{mymauve}{rgb}{0.58,0,0.82}
+
+\definecolor{LightCyan}{rgb}{0.88,1,1}
+\definecolor{bluekeywords}{rgb}{0.13,0.13,1}
+\definecolor{greencomments}{rgb}{0,0.5,0}
+\definecolor{turqusnumbers}{rgb}{0.17,0.57,0.69}
+\definecolor{redstrings}{rgb}{0.5,0,0}
+\definecolor{red}{rgb}{0.5,0.0,0.0}
+\definecolor{blue}{rgb}{0.0,0.5,1.0}
+\definecolor{green}{rgb}{0.0,0.5,0.0}
+
+
+% basic settings, can be overrided
+\lstset{
+  basicstyle=\ttfamily\small,
+  breaklines=true,
+  columns=fullflexible,
+  escapeinside={\%},
+  frame=none,
+  backgroundcolor=\color{backgroundblue},
+  showspaces=false,
+  keepspaces=true,
+  showstringspaces=false,
+  showtabs=false,
+  numbers=left,
+  aboveskip=-3pt,
+  sensitive=true
+}
+
+
+% nice horizontal line "-------- <text> --------", used above a listing
+\def\headline#1{\begin{minipage}{36em}\vspace{4mm}\hrulefill\quad\lower.3em\hbox{#1}\quad\hrulefill\end{minipage}}
+
+% horizontal line, used below a listing
+\newcommand{\lstline}{\vspace{-3mm}\hrulefill\vspace{2mm}\newline}
+
+
+% fancy insert listing command
+% example of usage: `\customlisting{FSharp}{Some Function}{<file.fsx>}`
+\newcommand{\customlisting}[3]{\lstinputlisting[language=#1,name=#2]{#3}\lstline}
+
+
+% Insert the code, e.g. from a file like this:
+% \lstinputlisting[language=<language>]{<input_file>}
+% \lstinputlisting[language=<language>, firstline=X, lastline=Y]{<input_file>}
+
+% Or directly write the code in the .tex document:
+% \begin{lstlisting}[language=<language>]
+
+\lstdefinelanguage{Cpp}{
+  morekeywords={float, int, double, uint, bool, if, for, else, void, class,
+                struct, private, protected, public, enum, const, char, case,
+                default, return, switch},
+  keywordstyle=\color{bluekeywords},
+  morecomment=[l][\color{greencomments}]{///},
+  morecomment=[l][\color{greencomments}]{//},
+  morecomment=[l][\color{redstrings}]{\#},
+  morecomment=[s][\color{greencomments}]{{/*}{*/}},
+  morestring=[b]",
+  stringstyle=\color{redstrings},
+  %title={\headline{\small C++ - \textit{\lstname}}}
+}
+
+
+%% =========================== %%
+%% === ADDITIONAL PACKAGES === %%
+%% =========================== %%
+% Load with some options, i.e. \usepackage[colorlinks=true,linkcolor=blue]{hyperref} or blank
+% \usepackage{hyperref}
+%\usepackage[colorlinks=true,linkcolor=blue, linktocpage]{hyperref}
+
+
+%% ================ %%
+%% === DOCUMENT === %%
+%% ================ %%
 \begin{document}
 
 %% \abstract{
@@ -31,11 +116,56 @@
 %% }
 
 \maketitle
+\tableofcontents
 
-\section{The first section}
+\section{Introduction}
 
-Some text here...
+\section{Motivation and Scope}
 
+The initial motivation for this proposal was the lack of a good way in the standard
+library to convert an enum value to a proper string representation. Very often, I
+have found a need to log an enum for various purposes, and every time I create a new
+enum type I have to write such a function again. An example:
+
+\begin{lstlisting}[language=Cpp]
+enum class GraphicsApiType { none, opengl, vulkan };
+
+const char* get_api_type_string(GraphicsApiType apiType) {
+    switch (apiType) {
+    case GraphicsApiType::none:   return "none";
+    case GraphicsApiType::opengl: return "opengl";
+    case GraphicsApiType::vulkan: return "vulkan";
+    default: return "<unrecognized>";
+    }
+}
+\end{lstlisting}
+
+\noindent
+This is cumbersome to maintain, for every time a value is added or modified inside
+the enum type, this other function has to be modified as well. But besides this,
+a potential \textit{run-time} error may be introduced when an invalid enum is
+provided.
+
+A session of browsing around sites such as StackOverflow revealed sometimes quite
+vividly imaginary answers for how to circumvent this limitation in the language:
+
+\begin{enumerate}
+\item \url{https://stackoverflow.com/questions/11421432/how-can-i-output-the-value-of-an-enum-class-in-c11}
+\item \url{https://stackoverflow.com/questions/1390703/enumerate-over-an-enum-in-c}
+\item \url{https://stackoverflow.com/questions/6281461/enum-to-string-c}
+\item \url{https://stackoverflow.com/questions/201593/is-there-a-simple-way-to-convert-c-enum-to-string}
+\end{enumerate}
+
+
+\section{Impact on the Standard}
+
+\section{Design Decisions}
+
+\section{Technical Specifications}
+
+\section{Acknowledgements}
+
+\section{References}
 
 
 
