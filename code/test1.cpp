@@ -10,9 +10,15 @@ private:
 	T value;
 };
 
+template<MyScopedEnum T>
+class MyClass2 {
+	MyScopedEnum value = T;
+};
+
 int main()
 {
 	static_assert(std::scoped_enum<MyScopedEnum>);
 	MyClass<MyScopedEnum> myClass(MyScopedEnum::value_1);
+	MyClass2<MyScopedEnum::value_1> myClass2;
 	// MyClass<int> myClass(23); // -- fails to compile!
 }

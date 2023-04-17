@@ -156,10 +156,114 @@ vividly imaginary answers for how to circumvent this limitation in the language:
 \item \url{https://stackoverflow.com/questions/201593/is-there-a-simple-way-to-convert-c-enum-to-string}
 \end{enumerate}
 
+\noindent
+Quite intuitively, two key observations were made:
+
+\begin{itemize}
+\item This proposal introduces \underline{changes to the core language}.
+\item While fixing enum to string funcionality, there's a lot more that we could do at the same time.
+\end{itemize}
+
+\subsection{Scope for this proposal}
+
+Only \textit{scoped enums} are extended with this proposal, because they are fully
+type safe, meaning that we can theoretically perform all necessary computations needed
+for this proposal \textit{compile-time}, with no risk of throwing exceptions or using
+any other runtime mechanism.
+
 
 \section{Impact on the Standard}
 
+This proposal requires new language features, because certain enum extensions cannot
+be covered by simply writing a library. The impacts are listed below with a subsection
+for each of them.
+
+
+\section{Proposed Notation}
+
+Given my limited experience (actually: none) in writing C++ proposals, I know what I
+\underline{would like} the proposal to address and introduce to the core language,
+but not necessarily \underline{how it should be done}.
+
+\section{Convert scoped enum to string}
+
+Two ways of obtaining a string is suggested - the simple one, and a fully-qualified
+one which contains namespaces, classes, and other scopes:\vspace{2mm}
+
+\begin{lstlisting}[language=Cpp]
+namespace graphics {
+    enum class GraphicsApiType { none, opengl, vulkan };
+}
+std::cout << std::enum_str<GraphicsApiType::opengl>() << std::endl;
+// --> "opengl"
+std::cout << std::enum_str_full<GraphicsApiType::opengl>() << std::endl;
+// "graphics::GraphicsApiType::opengl"
+\end{lstlisting}
+
+\noindent
+The return type itself gives us a number of possibilites, but two are probably worthy
+of consideration: \texttt{const char*} and \texttt{std::string\_view}.
+
+\section{Concept for "is-an-enum"}
+
+We can with C++-23 create a concept which is useful for template substitution:\vspace{2mm}
+
+\begin{lstlisting}[language=Cpp]
+template<typename T>
+concept scoped_enum = std::is_scoped_enum_v<T>;
+
+template<std::scoped_enum T>
+class foo { int bar; };
+
+// Try it out:
+foo<GraphicsApiType> f1; // <-- success!
+foo<unsigned long> f2; // <-- fails to compile!
+\end{lstlisting}
+
+\section{Iterating through a scoped enum}
+
+Another interesting scenario is if an enum contains "identifiers", where for each we
+want to create some data structure and add that to some general storage. An example
+of such storage is shown below, using the \texttt{scoped\_enum} concept proposed
+earlier:\vspace{2mm}
+
+\begin{lstlisting}[language=Cpp]
+template<std::scoped_enum E, typename T>
+class EnumMap {
+public:
+    bool has_value(E e) { return mEnumMap.contains(e); }
+    void add_value(E e, T&& t) { mEnumMap[e] = t; }
+    std::optional<T> get_value(E e) {
+        if (auto it = mEnumMap.find(e); it != mEnumMap.end()) {
+            return { it->second };
+        } else { return std::nullopt; }
+    }
+private:
+    std::map<E, T> mEnumMap;
+};
+\end{lstlisting}
+
+We can then obtain a "bi-directional" iterator, which allows us to iterate through
+all values in the enumeration and add them to the storage:\vspace{2mm}
+
+\begin{lstlisting}[language=Cpp]
+void fill(EnumMap<auto T, auto V>& em) {
+    for (T t : std::enum_values<T>)
+        em.add value(t, V{});
+}
+\end{lstlisting}
+
+
+
+
+
+
+
+
+
 \section{Design Decisions}
+
+
 
 \section{Technical Specifications}
 
