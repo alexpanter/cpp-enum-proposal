@@ -220,6 +220,37 @@ foo<GraphicsApiType> f1; // <-- success!
 foo<unsigned long> f2; // <-- fails to compile!
 \end{lstlisting}
 
+\section{Get the underlying type}
+
+In current C++, when needing to compare an enum value to its underlying type,
+a relatively verbose expression is needed which involves a "\texttt{static\_cast}"
+and possible also an "\texttt{std::underlying\_type}". This has been somewhat
+mitigated by the introduction of \texttt{std::to\_underlying}, available with C++23,
+but this proposal adds a new template meta-function which does the same thing:\vspace{2mm}
+
+\begin{lstlisting}[language=Cpp]
+template<scoped_enum E>
+struct enum_type {
+    using type = std::underlying_type<E>::type;
+};
+
+template<scoped_enum E>
+using enum_type_t = std::enum_type<E>::type;
+
+// Try is out:
+enum class Color : int { red, green, blue, yellow };
+std::enum_type_t<Color> yellow = Color::yellow;
+\end{lstlisting}
+
+The benefit of this meta-function, as opposed to \texttt{std::to\_underlying}, is
+that this meta-function does not work for unscoped enumerations. This is because
+\texttt{std::to\_underlying} uses \texttt{std::underlying\_type}, while this new
+meta-function uses the newly proposed concept \texttt{std::scoped\_enum}.
+This creates a more accentuated difference between scoped and unscoped enums, and
+thereby encourages the use of scoped enums for enhanced type safety and scope
+safety.
+
+
 \section{Iterating through a scoped enum}
 
 Another interesting scenario is if an enum contains "identifiers", where for each we

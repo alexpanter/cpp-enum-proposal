@@ -34,18 +34,25 @@ namespace std
 		using type = std::underlying_type<E>::type;
 	};
 
-	template<scoped_enum E>
-	using enum_type_t = enum_type<E>::type;
+	// NOTE: Since C++23 we have std::to_underlying :
+	// template<class Enum>
+	// constexpr std::underlying_type_t<Enum> to_underlying(Enum e);
+	// This is equivalent to:
+	// return static_cast<std::underlying_type_t<Enum>>(e);
 
-	// =========================== //
-	// === VALUE: enum_value_v === //
-	// =========================== //
-	// template<typename E>
-	// requires scoped_enum<enum_type_t<E>>
-	// struct enum_value
-	// {
-	// 	static constexpr auto value = static_cast<enum_type<E>::type>(E);
-	// };
+	template<scoped_enum E>
+	using enum_type_t = std::enum_type<E>::type;
+
+	// ========================= //
+	// === VALUE: enum_value === //
+	// ========================= //
+	template<scoped_enum Enum>
+	constexpr std::enum_type_t<Enum> enum_value(Enum e) noexcept
+	{
+		// TODO: Is is fine to erase this and use the shorter version?
+		// return static_cast<std::underlying_type_t<Enum>>(e);
+		return static_cast<std::enum_type_t<Enum>>(e);
+	}
 
 	// ================================= //
 	// === ITERATOR: enum_iterator_v === //
@@ -82,4 +89,19 @@ namespace std
 	// };
 	// using enum_iterator = std::contiguous_iterator<E>;
 
+}
+
+// =============================== //
+// === COMPARISON: operator<=> === //
+// =============================== //
+template<std::scoped_enum T>
+std::weak_ordering operator<=>(T t, std::integral auto i)
+{
+	return std::enum_value(t) <=> i;
+}
+
+template<std::scoped_enum T>
+std::weak_ordering operator<=>(T s, T t)
+{
+	return std::enum_value(s) <=> std::enum_value(t);
 }

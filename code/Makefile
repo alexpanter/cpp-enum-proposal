@@ -14,5 +14,8 @@ color_map: color_map.cpp ${HDR}
 iterate1: iterate1.cpp ${HDR}
 	${GCC} ${FLG} $< -o $@
 
+compare_enums: compare_enums.cpp ${HDR}
+	${GCC} ${FLG} $< -o $@
+
 clean:
 	rm -f test1
