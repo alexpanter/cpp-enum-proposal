@@ -12,8 +12,21 @@ enum class MyScopedEnum : int
 	value_57 = 57
 };
 
+void print_enum_value(MyScopedEnum e)
+{
+	std::cout << "print_enum_value: " << std::enum_value(e) << '\n';
+}
 
+namespace std {
+	template<std::scoped_enum T, T E>
+	struct enum_position {
+		// TODO: Perhaps we _can_ actually use some template meta-programming to do this?
+		static constexpr std::size_t value = 0; // <-- compiler implements this
+	};
 
+	template<std::scoped_enum T, T E>
+	std::size_t enum_position_v = std::enum_position<T, E>::value;
+}
 
 int main()
 {
@@ -23,18 +36,15 @@ int main()
 	};
 	std::cout << "clever_fun: " << clever_fun(1) << '\n';
 
-	MyScopedEnum e0 = MyScopedEnum::value_0;
-	bool equal = (e0 <=> 0) == 0;
+	constexpr MyScopedEnum e0 = MyScopedEnum::value_0;
+	constexpr bool equal = (e0 <=> 0) == 0;
 	assert(equal);
 
-	bool equal2 = (0 <=> e0) == 0;
-	assert(equal);
+	constexpr bool equal2 = (0 <=> e0) == 0;
+	static_assert(equal);
 
-	MyScopedEnum e2 = MyScopedEnum::value_2;
-	bool less = (1 <=> e2) < 0;
-	assert(less);
-	bool greater = (e2 <=> 1) > 0;
-	assert(greater);
+	static_assert((1 <=> MyScopedEnum::value_2) < 0);
+	static_assert((MyScopedEnum::value_2 <=> 1) > 0);
 
 	std::enum_type_t<MyScopedEnum> i = 5;
 	// std::enum_type_t<MyScopedEnum::value_0> j = 6;
@@ -42,8 +52,20 @@ int main()
 	auto value3 = std::enum_value(MyScopedEnum::value_3);
 	std::cout << "enum_value<value_3>: " << value3 << '\n';
 
-	constexpr auto ordering = MyScopedEnum::value_3 <=> MyScopedEnum::value_43;
+	constexpr auto ordering = static_cast<MyScopedEnum>(3) <=> MyScopedEnum::value_43;
 	static_assert(ordering < 0);
+
+	print_enum_value(MyScopedEnum::value_57);
+	print_enum_value(static_cast<MyScopedEnum>(56));
+
+	auto ordering2 = MyScopedEnum::value_57 <=> 42;
+	if (ordering2 > 0) {
+		std::cout << "success!\n";
+	} else {
+		std::cout << "failure!\n";
+	}
+
+	constexpr MyScopedEnum test = static_cast<MyScopedEnum>(56);
 
 	return 0;
 }

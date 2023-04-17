@@ -95,7 +95,7 @@ namespace std
 // === COMPARISON: operator<=> === //
 // =============================== //
 template<std::scoped_enum T>
-std::weak_ordering operator<=>(T t, std::integral auto i)
+constexpr std::weak_ordering operator<=>(T t, std::integral auto i)
 {
 	return std::enum_value(t) <=> i;
 }

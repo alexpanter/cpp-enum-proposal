@@ -19,8 +19,8 @@
 \setcopyright{rightsretained}
 
 \author{Alexander Christensen}
-\title{C Scoped Enum Enhancements}
-\email{alex\_c007@hotmail.com}
+\title{C++ Scoped Enum Enhancements}
+\email{<alex\_c007@hotmail.com>}
 
 %% \citestyle{acmauthoryear}
 
@@ -86,7 +86,8 @@
 \lstdefinelanguage{Cpp}{
   morekeywords={float, int, double, uint, bool, if, for, else, void, class,
                 struct, private, protected, public, enum, const, char, case,
-                default, return, switch},
+                default, return, switch, template, constexpr, noexcept, auto,
+                typename},
   keywordstyle=\color{bluekeywords},
   morecomment=[l][\color{greencomments}]{///},
   morecomment=[l][\color{greencomments}]{//},
@@ -120,12 +121,29 @@
 
 \section{Introduction}
 
+This proposal is the first revision of "C++ Scoped Enum Proposal", which was circulated
+in the C++ proposals email list during the winter of 2021/2022. The goal of writing
+this proposal is to gain feedback and insights, which may then be used for further
+revisions.
+
+\noindent
+Note: This proposal targets only \underline{scoped enums}, and does not provide any
+effort to address \textit{unscoped} enums.
+
+\vspace{2mm}\noindent
+Given my limited experience (actually: none) in writing C++ proposals, I know what I
+\underline{would like} the proposal to address and introduce to the core language,
+but not necessarily \underline{how it should be done}. The suggested notations
+provided are, thus, merely suggestions - and not concrete proposals for a concious
+choice of syntax.
+
+
 \section{Motivation and Scope}
 
 The initial motivation for this proposal was the lack of a good way in the standard
 library to convert an enum value to a proper string representation. Very often, I
 have found a need to log an enum for various purposes, and every time I create a new
-enum type I have to write such a function again. An example:
+enum type I have to write such a function again. An example:\vspace{2mm}
 
 \begin{lstlisting}[language=Cpp]
 enum class GraphicsApiType { none, opengl, vulkan };
@@ -161,7 +179,7 @@ Quite intuitively, two key observations were made:
 
 \begin{itemize}
 \item This proposal introduces \underline{changes to the core language}.
-\item While fixing enum to string funcionality, there's a lot more that we could do at the same time.
+\item While fixing enum to string functionality, there's a lot more that we could do at the same time.
 \end{itemize}
 
 \subsection{Scope for this proposal}
@@ -179,11 +197,6 @@ be covered by simply writing a library. The impacts are listed below with a subs
 for each of them.
 
 
-\section{Proposed Notation}
-
-Given my limited experience (actually: none) in writing C++ proposals, I know what I
-\underline{would like} the proposal to address and introduce to the core language,
-but not necessarily \underline{how it should be done}.
 
 \section{Convert scoped enum to string}
 
@@ -220,13 +233,15 @@ foo<GraphicsApiType> f1; // <-- success!
 foo<unsigned long> f2; // <-- fails to compile!
 \end{lstlisting}
 
-\section{Get the underlying type}
+
+\section{Obtain the underlying type}
 
 In current C++, when needing to compare an enum value to its underlying type,
 a relatively verbose expression is needed which involves a "\texttt{static\_cast}"
 and possible also an "\texttt{std::underlying\_type}". This has been somewhat
 mitigated by the introduction of \texttt{std::to\_underlying}, available with C++23,
-but this proposal adds a new template meta-function which does the same thing:\vspace{2mm}
+but this proposal adds a new template meta-function which does almost the same
+thing:\vspace{2mm}
 
 \begin{lstlisting}[language=Cpp]
 template<scoped_enum E>
@@ -237,7 +252,7 @@ struct enum_type {
 template<scoped_enum E>
 using enum_type_t = std::enum_type<E>::type;
 
-// Try is out:
+// Try it out:
 enum class Color : int { red, green, blue, yellow };
 std::enum_type_t<Color> yellow = Color::yellow;
 \end{lstlisting}
@@ -249,6 +264,68 @@ meta-function uses the newly proposed concept \texttt{std::scoped\_enum}.
 This creates a more accentuated difference between scoped and unscoped enums, and
 thereby encourages the use of scoped enums for enhanced type safety and scope
 safety.
+
+
+\section{Get the underlying value}
+
+Similar to how getting an underlying type can be tedious, this proposal also
+addresses the need for obtaining the underlying value of a scoped enum value:\vspace{2mm}
+
+\begin{lstlisting}[language=Cpp]
+template<scoped_enum Enum>
+constexpr std::enum_type_t<Enum> enum_value(Enum e) noexcept
+{
+    // TODO: Error - use enum_cast instead!
+    return static_cast<std::enum_type_t<Enum>>(e);
+}
+\end{lstlisting}
+
+
+\section{Safe enum conversion (language feature)}
+
+Sometimes, a conversion from an underlying type to an enum value may be approved
+without being valid. And there exists no compile-time feature to check for this.
+An example of how it may go wrong:\vspace{2mm}
+
+\begin{lstlisting}[language=Cpp]
+enum class MyScopedEnum : int
+{
+    value_0 = 0, value_1 = 1, value_2 = 2, value_3 = 3, value_43 = 43, value_57 = 57
+};
+
+constexpr MyScopedEnum test = static_cast<MyScopedEnum>(56);
+\end{lstlisting}
+
+\noindent
+Even if we explicitly denote our variable \texttt{constexpr}, the compiler is not
+able to enforce correct behaviour, and so we obtain undefined behaviour. The topic
+is discussed on StackOverflow:
+
+\noindent
+\url{https://stackoverflow.com/questions/17811179/safe-way-to-convert-an-integer-in-an-enum}
+
+\vspace{3mm}\noindent
+This proposal thus defines a template meta-function which fails at
+\underline{compile-time} if the conversion is invalid. It might be possible to also
+define a \textit{run-time} mechanism which throws an exception, but this revision
+does not discuss that topic further. Proposed syntax:\vspace{2mm}
+
+\begin{lstlisting}[language=Cpp]
+template<std::scoped_enum T>
+constexpr bool is_enum_convertible(std::enum_type_t<T> t) {
+    return ...; // <-- compiler implements this
+};
+
+template<std::scoped_enum T>
+consteval T enum_cast(std::enum_type_t<T> t) {
+    static_assert(std::is_enum_convertible<T>(t));
+    return static_cast<T>(t);
+}
+\end{lstlisting}
+
+
+
+
 
 
 \section{Iterating through a scoped enum}
@@ -285,9 +362,110 @@ void fill(EnumMap<auto T, auto V>& em) {
 \end{lstlisting}
 
 
+\section{Enum Cardinality}
+
+Another feature which might sometimes be useful, is the ability to count the number
+of values inside an enumeration. This proposal, for the sake of \textit{completeness},
+defines a template meta-function which does this:\vspace{2mm}
+
+\begin{lstlisting}[language=Cpp]
+template<scoped_enum E>
+struct enum_cardinality
+{
+    static constexpr std::size_t value = 1; // <-- compiler implements this
+};
+
+template<scoped_enum E>
+std::size_t enum_cardinality_v = std::enum_cardinality<E>::value;
+
+// Try it out:
+enum class Weekday { monday, tuesday, /* etc. */ };
+static_assert(std::enum_cardinality_v<Weekday> == 7);
+\end{lstlisting}
+
+
+\section{Enum position}
+
+We might also want to know the position or the \textit{index} of an enum value
+inside an enumeration. As with \texttt{std::enum\_cardinality}, we need to rely
+on the compiler to provide an implementation, as well as a requirement of strict
+compile-time evaluation:\vspace{2mm}
+
+\begin{lstlisting}[language=Cpp]
+template<std::scoped_enum T, T E>
+struct enum_position {
+    // TODO: Perhaps we _can_ actually use some template meta-programming to do this?
+    static constexpr std::size_t value = 0; // <-- compiler implements this
+};
+
+template<std::scoped_enum T, T E>
+std::size_t enum_position_v = std::enum_position<T, E>::value;
+
+// Try it out:
+enum class Fruit { banana = 1, apple = 2, orange = 4, clementine = 8 };
+static assert(std::enum_value_v<Fruit::orange> == 4);
+static assert(std::enum_position<Fruit, Fruit::orange> == 2);
+\end{lstlisting}
+
+\noindent
+With both \texttt{enum\_cardinality} and \texttt{enum\_position} implemented, we
+can create e.g. create a priority mapper with a priority for each enum value:\vspace{2mm}
+
+\begin{lstlisting}[language=Cpp]
+template<std::scoped_enum T>
+class EnumPriorityMapper {
+public:
+    unsigned int GetPriority(T t) {
+        return mPriorities[std::enum_position_v<T, t>];
+    }
+    void SetPriority(T t, unsigned int p) {
+        mPriorities[std::enum_position_v<T, t>] = p;
+    }
+private:
+    unsigned int mPriorities[std::enum_cardinality_v<T>];
+};
+\end{lstlisting}
+
+
+\section{Weak ordering}
+
+With a good comparison operator in place, it becomes straight-forward to test
+the order in which values appear inside an enumeration. Using the "spaceship operator"
+introduced with C++20, this proposal defines two three-way comparison functions:\vspace{2mm}
+
+\begin{lstlisting}[language=Cpp]
+namespace std {
+    // ...
+}
+
+template<std::scoped_enum T>
+constexpr std::weak_ordering operator<=>(T t, std::integral auto i) {
+    return std::enum_value(t) <=> i;
+}
+
+template<std::scoped_enum T>
+std::weak_ordering operator<=>(T s, T t) {
+    return std::enum_value(s) <=> std::enum_value(t);
+}
+
+// Try it out:
+enum class MyScopedEnum : int
+{
+    value_0 = 0, value_1 = 1, value_2 = 2, value_3 = 3, value_43 = 43, value_57 = 57
+};
+static_assert((MyScopedEnum::value_0 <=> 0) == 0);
+static_assert((1 <=> MyScopedEnum::value_2) < 0);
+static_assert((MyScopedEnum::value_2 <=> 1) > 0);
+\end{lstlisting}
 
 
 
+
+
+
+
+
+\section{Proposed Notation Summary}
 
 
 
