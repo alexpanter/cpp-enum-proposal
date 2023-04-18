@@ -87,7 +87,8 @@
   morekeywords={float, int, double, uint, bool, if, for, else, void, class,
                 struct, private, protected, public, enum, const, char, case,
                 default, return, switch, template, constexpr, noexcept, auto,
-                typename, namespace, concept, static},
+                typename, namespace, concept, static, unsigned, consteval,
+                long},
   keywordstyle=\color{bluekeywords},
   morecomment=[l][\color{greencomments}]{///},
   morecomment=[l][\color{greencomments}]{//},
@@ -209,6 +210,10 @@ one which contains namespaces, classes, and other scopes:\vspace{2mm}
 namespace graphics {
     enum class GraphicsApiType { none, opengl, vulkan };
 }
+
+template<std::scoped_enum T> // <-- concept defined in next subsection
+constexpr std::string_view enum_str(T t) { /* implemented in the compiler */ }
+
 std::cout << std::enum_str<GraphicsApiType::opengl>() << std::endl;
 // --> "opengl"
 std::cout << std::enum_str_full<GraphicsApiType::opengl>() << std::endl;
@@ -217,7 +222,12 @@ std::cout << std::enum_str_full<GraphicsApiType::opengl>() << std::endl;
 
 \noindent
 The return type itself gives us a number of possibilites, but two are probably worthy
-of consideration: \texttt{const char*} and \texttt{std::string\_view}.
+of consideration: \texttt{const char*} and \texttt{std::string\_view}. It is probably
+also worth considering what notation is \textit{optimal}. In the example above, we
+have a templated function which return a \texttt{constexpr} string representation.
+
+\vspace{2mm}\noindent
+Note: I am unsure how best to write this.
 
 
 \subsection{Concept for "is-an-enum"}
