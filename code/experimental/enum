@@ -25,6 +25,18 @@ namespace std
 	template<scoped_enum E>
 	std::size_t enum_cardinality_v = std::enum_cardinality<E>::value;
 
+	// ================================= //
+	// === VALUE: enum_position_v === //
+	// ================================= //
+	template<std::scoped_enum T, T E>
+	struct enum_position {
+		// TODO: Perhaps we _can_ actually use some template meta-programming to do this?
+		static constexpr std::size_t value = 0; // <-- compiler implements this
+	};
+
+	template<std::scoped_enum T, T E>
+	std::size_t enum_position_v = std::enum_position<T, E>::value;
+
 	// ========================= //
 	// === TYPE: enum_type_t === //
 	// ========================= //
@@ -104,4 +116,25 @@ template<std::scoped_enum T>
 std::weak_ordering operator<=>(T s, T t)
 {
 	return std::enum_value(s) <=> std::enum_value(t);
+}
+
+// ========================== //
+// === BITFLAG operations === //
+// ========================== //
+template<std::scoped_enum T>
+constexpr std::enum_type_t<T> operator| (T s, T t)
+{
+	return std::enum_type_t<T>(s) | std::enum_type_t<T>(t);
+}
+
+template<std::scoped_enum T>
+constexpr bool operator& (std::enum_type_t<T> f, T t)
+{
+	return f & std::enum_value(t);
+}
+
+template<std::scoped_enum T>
+constexpr bool operator& (T t, std::enum_type_t<T> f)
+{
+	return std::enum_value(t) & f;
 }

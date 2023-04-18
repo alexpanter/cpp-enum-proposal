@@ -87,7 +87,7 @@
   morekeywords={float, int, double, uint, bool, if, for, else, void, class,
                 struct, private, protected, public, enum, const, char, case,
                 default, return, switch, template, constexpr, noexcept, auto,
-                typename},
+                typename, namespace, concept, static},
   keywordstyle=\color{bluekeywords},
   morecomment=[l][\color{greencomments}]{///},
   morecomment=[l][\color{greencomments}]{//},
@@ -198,7 +198,9 @@ for each of them.
 
 
 
-\section{Convert scoped enum to string}
+\section{Proposed features}
+
+\subsection{Convert scoped enum to string}
 
 Two ways of obtaining a string is suggested - the simple one, and a fully-qualified
 one which contains namespaces, classes, and other scopes:\vspace{2mm}
@@ -217,7 +219,8 @@ std::cout << std::enum_str_full<GraphicsApiType::opengl>() << std::endl;
 The return type itself gives us a number of possibilites, but two are probably worthy
 of consideration: \texttt{const char*} and \texttt{std::string\_view}.
 
-\section{Concept for "is-an-enum"}
+
+\subsection{Concept for "is-an-enum"}
 
 We can with C++-23 create a concept which is useful for template substitution:\vspace{2mm}
 
@@ -234,7 +237,7 @@ foo<unsigned long> f2; // <-- fails to compile!
 \end{lstlisting}
 
 
-\section{Obtain the underlying type}
+\subsection{Obtain the underlying type}
 
 In current C++, when needing to compare an enum value to its underlying type,
 a relatively verbose expression is needed which involves a "\texttt{static\_cast}"
@@ -266,7 +269,7 @@ thereby encourages the use of scoped enums for enhanced type safety and scope
 safety.
 
 
-\section{Get the underlying value}
+\subsection{Get the underlying value}
 
 Similar to how getting an underlying type can be tedious, this proposal also
 addresses the need for obtaining the underlying value of a scoped enum value:\vspace{2mm}
@@ -281,7 +284,7 @@ constexpr std::enum_type_t<Enum> enum_value(Enum e) noexcept
 \end{lstlisting}
 
 
-\section{Safe enum conversion (language feature)}
+\subsection{Safe enum conversion (language feature)}
 
 Sometimes, a conversion from an underlying type to an enum value may be approved
 without being valid. And there exists no compile-time feature to check for this.
@@ -308,7 +311,7 @@ is discussed on StackOverflow:
 This proposal thus defines a template meta-function which fails at
 \underline{compile-time} if the conversion is invalid. It might be possible to also
 define a \textit{run-time} mechanism which throws an exception, but this revision
-does not discuss that topic further. Proposed syntax:\vspace{2mm}
+does not discuss that topic further (for now). Proposed syntax:\vspace{2mm}
 
 \begin{lstlisting}[language=Cpp]
 template<std::scoped_enum T>
@@ -324,11 +327,7 @@ consteval T enum_cast(std::enum_type_t<T> t) {
 \end{lstlisting}
 
 
-
-
-
-
-\section{Iterating through a scoped enum}
+\subsection{Iterating through a scoped enum}
 
 Another interesting scenario is if an enum contains "identifiers", where for each we
 want to create some data structure and add that to some general storage. An example
@@ -362,7 +361,7 @@ void fill(EnumMap<auto T, auto V>& em) {
 \end{lstlisting}
 
 
-\section{Enum Cardinality}
+\subsection{Enum Cardinality}
 
 Another feature which might sometimes be useful, is the ability to count the number
 of values inside an enumeration. This proposal, for the sake of \textit{completeness},
@@ -384,7 +383,7 @@ static_assert(std::enum_cardinality_v<Weekday> == 7);
 \end{lstlisting}
 
 
-\section{Enum position}
+\subsection{Enum position}
 
 We might also want to know the position or the \textit{index} of an enum value
 inside an enumeration. As with \texttt{std::enum\_cardinality}, we need to rely
@@ -394,7 +393,6 @@ compile-time evaluation:\vspace{2mm}
 \begin{lstlisting}[language=Cpp]
 template<std::scoped_enum T, T E>
 struct enum_position {
-    // TODO: Perhaps we _can_ actually use some template meta-programming to do this?
     static constexpr std::size_t value = 0; // <-- compiler implements this
 };
 
@@ -427,17 +425,13 @@ private:
 \end{lstlisting}
 
 
-\section{Weak ordering}
+\subsection{Weak ordering}
 
 With a good comparison operator in place, it becomes straight-forward to test
 the order in which values appear inside an enumeration. Using the "spaceship operator"
 introduced with C++20, this proposal defines two three-way comparison functions:\vspace{2mm}
 
 \begin{lstlisting}[language=Cpp]
-namespace std {
-    // ...
-}
-
 template<std::scoped_enum T>
 constexpr std::weak_ordering operator<=>(T t, std::integral auto i) {
     return std::enum_value(t) <=> i;
@@ -449,8 +443,7 @@ std::weak_ordering operator<=>(T s, T t) {
 }
 
 // Try it out:
-enum class MyScopedEnum : int
-{
+enum class MyScopedEnum : int {
     value_0 = 0, value_1 = 1, value_2 = 2, value_3 = 3, value_43 = 43, value_57 = 57
 };
 static_assert((MyScopedEnum::value_0 <=> 0) == 0);
@@ -459,19 +452,159 @@ static_assert((MyScopedEnum::value_2 <=> 1) > 0);
 \end{lstlisting}
 
 
+\subsection{Enum as bit flag}
 
+It may be desireable to have the option to specify a scoped enum type as a bit flag,
+so that its values may be used to create bitmasks. In other words, we want a syntax
+which allows a use case like this:\vspace{2mm}
 
+\begin{lstlisting}[language=Cpp]
+enum class MemoryUsageFlag {
+    device_local, host_visible, host_coherent, host_cached, lazily_allocated, is_protected
+};
 
+auto memFlags = MemoryUsageFlag::device_local
+              | MemoryUsageFlag::lazily_allocated; // <-- Error: No operator defined.
+\end{lstlisting}
+
+\noindent
+But this is not currently possible without the use of \texttt{static\_cast}. And so
+this proposal defines some overloaded bitwise operators, so that scoped enums may be
+used as bit flags in a way that is \underline{type safe} and fully supported by the
+language:\vspace{2mm}
+
+\begin{lstlisting}[language=Cpp]
+template<std::scoped_enum T>
+constexpr std::enum_type_t<T> operator| (T s, T t)
+{
+    return std::enum_type_t<T>(s) | std::enum_type_t<T>(t);
+}
+
+template<std::scoped_enum T>
+constexpr bool operator& (std::enum_type_t<T> f, T t)
+{
+    return f & std::enum_value(t);
+}
+
+template<std::scoped_enum T>
+constexpr bool operator& (T t, std::enum_type_t<T> f)
+{
+    return std::enum_value(t) & f;
+}
+\end{lstlisting}
+
+\noindent
+These operators allow for \underline{compile-time} checks through \texttt{static\_cast},
+and lets us use scoped enums as fully type-safe bitmasking operands. Exemplified:\vspace{2mm}
+
+\begin{lstlisting}[language=Cpp]
+enum class EnumFlags : uint32_t {
+    flag_1 = 0x01,
+    flag_2 = 0x02,
+    flag_4 = 0x04,
+    flag_8 = 0x08
+};
+
+constexpr auto flags = EnumFlags::flag_1 | EnumFlags::flag_2;
+static_assert(flags & EnumFlags::flag_1);
+static_assert(!(EnumFlags::flag_8 & flags));
+\end{lstlisting}
 
 
 
 \section{Proposed Notation Summary}
 
+In summary, there's a lot of new features that would \textit{significantly} improve
+the usage of scoped enums. Some of these may be implemented as library features,
+while others simply cannot be written with current C++. Since most of the symbols
+defined are dependent upon \texttt{std::is\_scoped\_enum}, C++23 is the
+\textit{minimal} requirement for an implementation of this proposal. A quick overview
+of the function and meta-function signatures are listed here:\vspace{2mm}
+
+\begin{lstlisting}[language=Cpp]
+#include <type_traits>
+
+namespace std {
+    template<typename T>
+    concept scoped_enum = std::is_scoped_enum_v<T>;
+
+    template<scoped_enum E>
+    struct enum_cardinality {
+        static constexpr std::size_t value; // Implementation-defined
+    };
+
+    template<scoped_enum E>
+    std::size_t enum_cardinality_v = std::enum_cardinality<E>::value;
+
+    template<std::scoped_enum T, T E>
+    struct enum_position {
+        static constexpr std::size_t value = 0; // Implementation-defined
+    };
+
+    template<std::scoped_enum T, T E>
+    std::size_t enum_position_v = std::enum_position<T, E>::value;
+
+    template<scoped_enum E>
+    struct enum_type {
+        using type = std::underlying_type<E>::type;
+    };
+
+    template<scoped_enum E>
+    using enum_type_t = std::enum_type<E>::type;
+
+    template<scoped_enum Enum>
+    constexpr std::enum_type_t<Enum> enum_value(Enum e) noexcept {
+        return static_cast<std::enum_type_t<Enum>>(e);
+    }
+} // namespace std
+
+template<std::scoped_enum T>
+constexpr std::weak_ordering operator<=>(T t, std::integral auto i)
+{
+    return std::enum_value(t) <=> i;
+}
+
+template<std::scoped_enum T>
+std::weak_ordering operator<=>(T s, T t)
+{
+    return std::enum_value(s) <=> std::enum_value(t);
+}
+
+template<std::scoped_enum T>
+constexpr std::enum_type_t<T> operator| (T s, T t)
+{
+    return std::enum_type_t<T>(s) | std::enum_type_t<T>(t);
+}
+
+template<std::scoped_enum T>
+constexpr bool operator& (std::enum_type_t<T> f, T t)
+{
+    return f & std::enum_value(t);
+}
+
+template<std::scoped_enum T>
+constexpr bool operator& (T t, std::enum_type_t<T> f)
+{
+    return std::enum_value(t) & f;
+}
+\end{lstlisting}
 
 
 
 \section{Design Decisions}
 
+The overall design goals have been twofold:
+
+\begin{enumerate}
+\item Provide enhancements that all operate \underline{compile-time}.
+\item Only provide enhancements for the type-safe scoped enums. Do nothing for the "old" C-style enums.
+\end{enumerate}
+
+\noindent
+As such, most features have been written with the proposed syntax of template
+meta-functions, with the use of modern C++ features such as \texttt{concepts} and
+"three-way comparison" (\texttt{<=>}). The proposed syntax are merely
+\textit{suggestions}, ie. "what I want", and not necessarily "how I want it".
 
 
 \section{Technical Specifications}

@@ -17,17 +17,6 @@ void print_enum_value(MyScopedEnum e)
 	std::cout << "print_enum_value: " << std::enum_value(e) << '\n';
 }
 
-namespace std {
-	template<std::scoped_enum T, T E>
-	struct enum_position {
-		// TODO: Perhaps we _can_ actually use some template meta-programming to do this?
-		static constexpr std::size_t value = 0; // <-- compiler implements this
-	};
-
-	template<std::scoped_enum T, T E>
-	std::size_t enum_position_v = std::enum_position<T, E>::value;
-}
-
 int main()
 {
 	auto clever_fun = [](int a) -> int
