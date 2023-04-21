@@ -20,6 +20,8 @@ compare_enums: compare_enums.cpp ${HDR}
 bitflag_enums: bitflag_enums.cpp ${HDR}
 	${GCC} ${FLG} $< -o $@
 
+bitflag_type: bitflag_type.cpp ${HDR}
+	${GCC} ${FLG} $< -o $@
 
 clean:
 	rm -f test1
