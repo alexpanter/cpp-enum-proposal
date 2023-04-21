@@ -106,6 +106,9 @@
 % Load with some options, i.e. \usepackage[colorlinks=true,linkcolor=blue]{hyperref} or blank
 % \usepackage{hyperref}
 %\usepackage[colorlinks=true,linkcolor=blue, linktocpage]{hyperref}
+\usepackage{stackengine}
+\newlength\llength
+\llength=\linewidth\relax
 
 
 %% ================ %%
@@ -335,6 +338,57 @@ consteval T enum_cast(std::enum_type_t<T> t) {
     return static_cast<T>(t);
 }
 \end{lstlisting}
+
+
+\subsection{IMPROVED Safe enum conversion (language feature)}
+
+
+
+%% NOTE: Borrowed from:
+%% https://tex.stackexchange.com/questions/168741/showing-two-listings-in-a-table-side-by-side
+\setbox0=\hbox{%
+\begin{minipage}{0.45\linewidth}
+\begin{center}
+Current C++, \texttt{static\_cast} is unsafe.\vspace{2mm}
+\end{center}
+\begin{lstlisting}[language=Cpp, basicstyle={\footnotesize\ttfamily}]
+enum class MyScopedEnum : int
+{
+    val_0 = 0, val_1 = 1, val_2 = 2
+};
+
+// FAIL: Compiler thinks this is okay
+MyScopedEnum e = static_cast<MyScopedEnum>(4);
+\end{lstlisting}
+\end{minipage}
+}
+\savestack{\listingA}{\box0}
+
+\setbox0=\hbox{%
+\begin{minipage}{0.45\linewidth}
+\begin{center}
+Proposed restriction to \texttt{static\_cast}.\vspace{2mm}
+\end{center}
+\begin{lstlisting}[language=Cpp, basicstyle={\footnotesize\ttfamily}]
+enum class MyScopedEnum : int
+{
+    val_0 = 0, val_1 = 1, val_2 = 2
+};
+
+// GOOD: Compiler throws an error
+MyScopedEnum e = static_cast<MyScopedEnum>(4);
+\end{lstlisting}
+\end{minipage}
+}
+\savestack{\listingB}{\box0}
+
+\begin{center}
+\begin{tabular}{ccc}
+\listingA & \hspace{5mm} & \listingB \\
+\end{tabular}
+\end{center}
+
+
 
 
 \subsection{Iterating through a scoped enum}
