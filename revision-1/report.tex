@@ -428,13 +428,38 @@ void fill(EnumMap<auto T, auto V>& em) {
 \subsection{Enum Cardinality}
 
 Another feature which might sometimes be useful, is the ability to count the number
-of values inside an enumeration. This proposal, for the sake of \textit{completeness},
-defines a template meta-function which does this:\vspace{2mm}
+of values inside an enumeration. A real-world example, here found in the
+\texttt{glslang} library for shader compilation:\vspace{2mm}
+
+\begin{lstlisting}[language=Cpp]
+typedef enum {
+    EShSourceNone,
+    EShSourceGlsl,               // GLSL, includes ESSL (OpenGL ES GLSL)
+    EShSourceHlsl,               // HLSL
+    LAST_ELEMENT_MARKER(EShSourceCount),
+} EShSource;                     // if EShLanguage were EShStage, this could be EShLanguage instead
+\end{lstlisting}
+
+Granted, this is a \texttt{C} library, but the use case for \texttt{C++} would be
+identical. And it would likely be used for validating the input because \texttt{enums}
+are unsafe:\vspace{2mm}
+
+\begin{lstlisting}[language=Cpp]
+void my_function(EShSource e) {
+    if (e < 0 || e >= LAST_ELEMENT_MARKER) {
+        // report an error...
+    }
+}
+\end{lstlisting}
+
+
+\noindent
+This proposal then adds a new template meta-function, which at compile time computes
+the number of elements - ie. the \textit{cardinality} - of a scoped enumueration:\vspace{2mm}
 
 \begin{lstlisting}[language=Cpp]
 template<scoped_enum E>
-struct enum_cardinality
-{
+struct enum_cardinality {
     static constexpr std::size_t value = 1; // <-- compiler implements this
 };
 
@@ -445,6 +470,44 @@ std::size_t enum_cardinality_v = std::enum_cardinality<E>::value;
 enum class Weekday { monday, tuesday, /* etc. */ };
 static_assert(std::enum_cardinality_v<Weekday> == 7);
 \end{lstlisting}
+
+\noindent
+The example from before could be written, then, in a manner both type safe and
+value safe, with no scope leakage:\vspace{2mm}
+
+\begin{lstlisting}[language=Cpp]
+enum class EShSource : int {
+    EShSourceNone = 0, EShSourceGlsl, EShSourceHlsl
+};
+
+void my_function(EShSource e) {
+    if (std::enum_value(e) < 0 || std::enum_value(e) >= std::enum_cardinality_v<EShSource>) {
+        // report an error...
+    }
+}
+\end{lstlisting}
+
+And this leads us to the next topic..
+
+
+\subsection{Enum bounds checking}
+
+It's annoying to write the statement in \texttt{my\_function} above, so there
+should also be a shorthand notation for that, thusly proposed:
+
+\begin{lstlisting}[language=Cpp]
+
+enum class EShSource : int {
+    EShSourceNone = 0, EShSourceGlsl, EShSourceHlsl
+};
+
+void my_function(EShSource e) {
+    if (std::enum_value(e) < 0 || std::enum_value(e) >= std::enum_cardinality_v<EShSource>) {
+        // report an error...
+    }
+}
+\end{lstlisting}
+
 
 
 \subsection{Enum position}

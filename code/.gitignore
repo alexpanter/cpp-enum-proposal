@@ -5,3 +5,4 @@ iterate1
 compare_enums
 bitflag_enums
 bitflag_type
+bounds_checking
