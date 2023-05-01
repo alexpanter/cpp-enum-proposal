@@ -508,6 +508,10 @@ void my_function(EShSource e) {
 }
 \end{lstlisting}
 
+\noindent
+\textbf{NOTE: We absolutely MUST test that enums are not given custom values, ie.
+only default in range [0, cardinality-1], OTHERWISE bounds checking cannot work properly!}
+
 
 
 \subsection{Enum position}
