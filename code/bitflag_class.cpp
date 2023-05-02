@@ -18,16 +18,30 @@ namespace std
 		inline enum_bitflag& operator=(const enum_bitflag b) { e = std::enum_value(b.e); return *this; }
 		inline enum_bitflag& operator=(E _e) { e = std::enum_value(_e); return *this; }
 
-		bool is_set() { return (e <=> std::enum_type_t<E>{0}) != 0; }
-		bool has_flag(E _e) { return e & _e; }
-		void add_flag(E _e) { e |= enum_value(_e); }
+		inline void clear() { e = std::enum_type_t<E>{0}; }
+		inline bool is_set() { return (e <=> std::enum_type_t<E>{0}) != 0; }
+		inline bool has_flag(E _e) { return e & _e; }
+		inline void add_flag(E _e) { e |= enum_value(_e); }
 
 		// bitwise operators
 		inline bool operator& (E _e) { return e & _e; }
+		inline void operator|= (E _e) { e |= std::enum_value(_e); }
+
+		// NOTE: Can this operator truly be safe?
+		// NOTE: We could make it throw, but is that really good practice?
+		// E.g. we can assign arbitrary integer values to this bitflag!
+		// But is needed to enum_bitflag = v1 | v2 | ... | vn;
+		inline enum_bitflag& operator= (std::enum_type_t<E> val) { e = val; return *this; }
 
 	private:
 		std::enum_type_t<E> e {0};
 	};
+}
+
+template<std::ValidBitflagType E>
+inline std::enum_type_t<E> operator| (std::enum_type_t<E> val, E _e)
+{
+	return 0;
 }
 
 enum class MyBitflag : unsigned int {
@@ -71,6 +85,39 @@ int main()
 	std::cout << "test.has_flag(MyBitflag::val_1): " << test.has_flag(MyBitflag::val_1) << '\n';
 	std::cout << "test.has_flag(MyBitflag::val_2): " << test.has_flag(MyBitflag::val_2) << '\n';
 	std::cout << "test.has_flag(MyBitflag::val_3): " << test.has_flag(MyBitflag::val_3) << "\n\n";
+
+	bool has_1 = test & MyBitflag::val_1;
+	std::cout << "(test & MyBitflag::val_1): " << (test & MyBitflag::val_1) << '\n';
+	std::cout << "(test & MyBitflag::val_4): " << (test & MyBitflag::val_4) << '\n';
+
+	test = MyBitflag::val_6;
+	std::cout << "test = MyBitflag::val_6\n";
+	std::cout << "test.has_flag(MyBitflag::val_1): " << test.has_flag(MyBitflag::val_1) << '\n';
+	std::cout << "test.has_flag(MyBitflag::val_6): " << test.has_flag(MyBitflag::val_6) << "\n\n";
+
+	test |= MyBitflag::val_5;
+	std::cout << "test |= MyBitflag::val_5\n";
+	std::cout << "test.has_flag(MyBitflag::val_1): " << test.has_flag(MyBitflag::val_1) << '\n';
+	std::cout << "test.has_flag(MyBitflag::val_5): " << test.has_flag(MyBitflag::val_5) << '\n';
+	std::cout << "test.has_flag(MyBitflag::val_6): " << test.has_flag(MyBitflag::val_6) << "\n\n";
+
+	test.clear();
+	std::cout << "test.clear()\n";
+	std::cout << "test.is_set(): " << test.is_set() << "\n\n";
+
+	test
+		= MyBitflag::val_1
+		| MyBitflag::val_2
+		| MyBitflag::val_3
+		| MyBitflag::val_4
+		| MyBitflag::val_6;
+	std::cout << "test = val_1 | val_2 | val_3 | val_4 | val_6\n";
+	std::cout << "test.has_flag(MyBitflag::val_1): " << test.has_flag(MyBitflag::val_1) << '\n';
+	std::cout << "test.has_flag(MyBitflag::val_2): " << test.has_flag(MyBitflag::val_2) << '\n';
+	std::cout << "test.has_flag(MyBitflag::val_3): " << test.has_flag(MyBitflag::val_3) << '\n';
+	std::cout << "test.has_flag(MyBitflag::val_4): " << test.has_flag(MyBitflag::val_4) << '\n';
+	std::cout << "test.has_flag(MyBitflag::val_5): " << test.has_flag(MyBitflag::val_5) << '\n';
+	std::cout << "test.has_flag(MyBitflag::val_6): " << test.has_flag(MyBitflag::val_6) << "\n\n";
 
 	return 0;
 }
