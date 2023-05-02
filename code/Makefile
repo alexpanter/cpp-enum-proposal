@@ -26,5 +26,8 @@ bitflag_type: bitflag_type.cpp ${HDR}
 bounds_checking: bounds_checking.cpp ${HDR}
 	${GCC} ${FLG} $< -o $@
 
+bitflag_class: bitflag_class.cpp ${HDR}
+	${GCC} ${FLG} $< -o $@
+
 clean:
 	rm -f test1
