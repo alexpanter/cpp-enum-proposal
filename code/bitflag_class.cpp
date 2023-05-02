@@ -3,7 +3,10 @@
 
 namespace std
 {
-	template<std::scoped_enum E>
+	template<typename E>
+	concept ValidBitflagType = std::scoped_enum<E> && std::is_unsigned_v<std::enum_type_t<E>>;
+
+	template<ValidBitflagType E>
 	class enum_bitflag
 	{
 	public:
@@ -34,6 +37,19 @@ enum class MyBitflag : unsigned int {
 	val_4 = 0x08U,
 	val_5 = 0x10U,
 	val_6 = 0x20U,
+};
+
+// NOTE: What this probably requires, is a way to ensure that the values placed inside
+// the enumeration are valid bitflags, ie. that none of the use the same bits.
+// And then again, maybe that's a feature that programmers want? An example:
+enum class ShaderType : unsigned int {
+	vertex              = 0x01,
+	tess_control        = 0x02,
+	tess_eval           = 0x04,
+	geometry            = 0x08,
+	fragment            = 0x10,
+	vertex_and_fragment = 0x11,
+	all_graphics        = 0x1F
 };
 
 
