@@ -1,43 +1,6 @@
 #include "experimental/enum"
 #include <iostream>
 
-// namespace std
-// {
-// 	template<typename E>
-// 	concept ValidBitflagType = std::scoped_enum<E> && std::is_unsigned_v<std::enum_type_t<E>>;
-
-// 	template<ValidBitflagType E>
-// 	class enum_bitflag
-// 	{
-// 	public:
-// 		// construction and assignment
-// 		inline enum_bitflag() : e(std::enum_type_t<E>{0}) {}
-// 		inline enum_bitflag(E _e) : e(_e) {}
-// 		inline enum_bitflag(const enum_bitflag& b) { e = std::enum_value(b.e); }
-// 		inline enum_bitflag(const enum_bitflag&& b) { e = std::enum_value(b.e); }
-// 		inline enum_bitflag& operator=(const enum_bitflag b) { e = std::enum_value(b.e); return *this; }
-// 		inline enum_bitflag& operator=(E _e) { e = std::enum_value(_e); return *this; }
-
-// 		inline void clear() { e = std::enum_type_t<E>{0}; }
-// 		inline bool is_set() { return (e <=> std::enum_type_t<E>{0}) != 0; }
-// 		inline bool has_flag(E _e) { return e & _e; }
-// 		inline void add_flag(E _e) { e |= enum_value(_e); }
-
-// 		// bitwise operators
-// 		inline bool operator& (E _e) { return e & _e; }
-// 		inline void operator|= (E _e) { e |= std::enum_value(_e); }
-
-// 		// NOTE: Can this operator truly be safe?
-// 		// NOTE: We could make it throw, but is that really good practice?
-// 		// E.g. we can assign arbitrary integer values to this bitflag!
-// 		// But is needed to enum_bitflag = v1 | v2 | ... | vn;
-// 		inline enum_bitflag& operator= (std::enum_type_t<E> val) { e = val; return *this; }
-
-// 	private:
-// 		std::enum_type_t<E> e {0};
-// 	};
-// }
-
 enum class MyBitflag : unsigned int {
 	val_1 = 0x01U,
 	val_2 = 0x02U,

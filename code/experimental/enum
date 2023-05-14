@@ -61,8 +61,6 @@ namespace std
 	template<scoped_enum Enum>
 	constexpr std::enum_type_t<Enum> enum_value(Enum e) noexcept
 	{
-		// TODO: Is is fine to erase this and use the shorter version?
-		// return static_cast<std::underlying_type_t<Enum>>(e);
 		return static_cast<std::enum_type_t<Enum>>(e);
 	}
 
@@ -101,13 +99,22 @@ namespace std
 	// };
 	// using enum_iterator = std::contiguous_iterator<E>;
 
-	template<std::scoped_enum T>
-	requires std::is_unsigned_v<std::enum_type_t<T>>
+	template<typename T>
+	concept scoped_enum_no_zero = true; // ...
+
+	template<typename T>
+	concept enum_bitmask_type =
+		std::scoped_enum<T>
+		&& std::is_unsigned_v<std::enum_type_t<T>>
+		&& scoped_enum_no_zero<T>;
+
+	template<typename T>
+	requires enum_bitmask_type<T>
 	class enum_bitmask
 	{
 		using type = std::enum_type_t<T>;
 	public:
-		inline enum_bitmask() { t = type{0}; }
+		inline enum_bitmask() { t = type{0U}; }
 		inline constexpr enum_bitmask(T _t) { t = std::enum_value<T>(_t); }
 		inline constexpr enum_bitmask(enum_bitmask& b) { t = b.t; }
 		inline enum_bitmask& operator= (T _t)
@@ -115,10 +122,10 @@ namespace std
 			t = std::enum_value<T>(_t); return *this;
 		}
 
-		inline bool empty() { return t == type{0}; }
+		inline bool empty() { return t == type{0U}; }
 		inline void add_flag(T _t) { t |= std::enum_value<T>(_t); }
 		inline bool has_flag(T _t) { return t & std::enum_value<T>(_t); }
-		inline void clear() { t = type{0}; }
+		inline void clear() { t = type{0U}; }
 
 		inline constexpr bool operator& (T _t) const
 		{
@@ -142,9 +149,8 @@ namespace std
 		inline bool operator== (const enum_bitmask& b) { return t == b.t; }
 
 	private:
-		std::enum_type_t<T> t;
+		std::enum_type_t<T> t {0U};
 	};
-
 }
 
 // =============================== //

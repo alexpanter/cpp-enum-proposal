@@ -21,7 +21,8 @@ struct enum_cardinality<E>
 
 template<std::scoped_enum E>
 requires IsMyScopedEnum<E>
-constexpr bool enum_bounded(std::enum_type_t<E> val) {
+constexpr bool enum_bounded(std::enum_type_t<E> val)
+{
 	return ((val <=> 0) >= 0) && ((val <=> enum_cardinality<E>::value) <= 0);
 }
 
