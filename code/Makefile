@@ -3,7 +3,7 @@ FLG=-std=c++23
 HDR=experimental/enum
 
 all: test1 test2 color_map iterate1 compare_enums bitflag_enums \
-	bitflag_type bounds_checking bitflag_class
+	bitflag_type bounds_checking bitflag_class enum_string
 
 test1: test1.cpp ${HDR}
 	${GCC} ${FLG} $< -o $@
@@ -32,5 +32,10 @@ bounds_checking: bounds_checking.cpp ${HDR}
 bitflag_class: bitflag_class.cpp ${HDR}
 	${GCC} ${FLG} $< -o $@
 
+enum_string: enum_string.cpp ${HDR}
+	${GCC} ${FLG} $< -o $@
+
 clean:
-	rm -f test1
+	rm -f test1 test2 color_map iterate1 compare_enums \
+	bitflag_enums bitflag_type bounds_checking bitflag_class \
+	enum_string

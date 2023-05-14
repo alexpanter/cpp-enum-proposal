@@ -7,3 +7,4 @@ bitflag_enums
 bitflag_type
 bounds_checking
 bitflag_class
+enum_string
