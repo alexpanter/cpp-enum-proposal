@@ -193,29 +193,52 @@ type safe, meaning that we can theoretically perform all necessary computations 
 for this proposal \textit{compile-time}, with no risk of throwing exceptions or using
 any other runtime mechanism.
 
+This, at least was the aim. Added is one particular \textit{exception} to this,
+where we try to convert to a scoped enum from its underlying type. This will be
+described in detail.
+
 
 \section{Impact on the Standard}
 
-This proposal requires new language features, because certain enum extensions cannot
-be covered by simply writing a library. The impacts are listed below with a subsection
-for each of them.
-
+This proposal requires some features that as of this writing cannot be covered by
+writing a library. These features \textit{might} possibly be implemented by the
+compilers instead of modifying or extending the C++ standard. This is preferred.
 
 
 \section{Proposed features}
 
-\subsection{Convert scoped enum to string}
+\subsection{Concept for "is-an-enum"}
 
-Two ways of obtaining a string is suggested - the simple one, and a fully-qualified
-one which contains namespaces, classes, and other scopes:\vspace{2mm}
+The basis for this proposal is a concept for restricting correct type substitution
+on templated types. This can be implemented fully as a \textit{library feature},
+using C++23:\vspace{2mm}
 
 \begin{lstlisting}[language=Cpp]
-namespace graphics {
-    enum class GraphicsApiType { none, opengl, vulkan };
+namespace std {
+    template<typename T>
+    concept scoped_enum = std::is_scoped_enum_v<T>;
 }
 
-template<std::scoped_enum T> // <-- concept defined in next subsection
-constexpr std::string_view enum_str(T t) { /* implemented in the compiler */ }
+template<std::scoped_enum T>
+class foo { int bar; };
+
+// Try it out:
+foo<GraphicsApiType> f1;  // <-- success!
+foo<unsigned long> f2;    // <-- fails to compile!
+\end{lstlisting}
+
+
+\subsection{Convert scoped enum to string}
+
+Two ways of obtaining a string is proposed: A simple one which contains only the
+name of the enum value, and a fully-qualified which \textit{additionally} contains
+namespaces, classes, and other scopes:\vspace{2mm}
+
+\begin{lstlisting}[language=Cpp]
+namespace std {
+    template<std::scoped_enum T>
+    constexpr std::string_view enum_str(T t) { /* compiler implements this */ }
+}
 
 std::cout << std::enum_str<GraphicsApiType::opengl>() << std::endl;
 // --> "opengl"
@@ -231,23 +254,6 @@ have a templated function which return a \texttt{constexpr} string representatio
 
 \vspace{2mm}\noindent
 Note: I am unsure how best to write this.
-
-
-\subsection{Concept for "is-an-enum"}
-
-We can with C++-23 create a concept which is useful for template substitution:\vspace{2mm}
-
-\begin{lstlisting}[language=Cpp]
-template<typename T>
-concept scoped_enum = std::is_scoped_enum_v<T>;
-
-template<std::scoped_enum T>
-class foo { int bar; };
-
-// Try it out:
-foo<GraphicsApiType> f1; // <-- success!
-foo<unsigned long> f2; // <-- fails to compile!
-\end{lstlisting}
 
 
 \subsection{Obtain the underlying type}
