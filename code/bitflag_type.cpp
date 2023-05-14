@@ -4,26 +4,6 @@
 #include <string_view>
 #include <stdexcept>
 
-template<std::scoped_enum T>
-class Bitflag
-{
-	using type = std::enum_type_t<T>;
-public:
-	Bitflag() { t = type{0}; }
-	Bitflag(T _t) { t = std::enum_value<T>(_t); }
-	Bitflag(Bitflag& b) { t = b.t; }
-
-	Bitflag& operator= (T _t) { t = std::enum_value<T>(_t); return *this; }
-	void operator|=(T _t) { t = t | std::enum_value<T>(_t); }
-	type operator()() { return t; }
-
-	bool operator& (T _t) { return t & std::enum_value<T>(_t); }
-	bool operator== (const Bitflag& b) { return t == b.t; }
-
-private:
-	std::enum_type_t<T> t;
-};
-
 enum class DynState : uint32_t
 {
 	viewport                    = 0x00000001U,
@@ -58,14 +38,14 @@ constexpr std::string_view enum_string(DynState ds)
 
 int main()
 {
-	Bitflag<DynState> state;
+	std::enum_bitmask<DynState> state;
 	std::cout << "Empty bitflag: " << state() << '\n';
 
 	state |= DynState::viewport;
 	std::cout << "Added " << enum_string(DynState::viewport) << ": " << state() << '\n';
 	std::cout << "Viewport is included: " << std::boolalpha << (state & DynState::viewport) << '\n';
 
-	Bitflag<DynState> state2(state);
+	std::enum_bitmask<DynState> state2(state);
 	std::cout << "New bitflag copy-constructed: " << state2() << '\n';
 	std::cout << "The two bitflags are equivalent: " << std::boolalpha << (state == state2) << '\n';
 

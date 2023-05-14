@@ -2,7 +2,6 @@
 #include <cstdint>
 #include <iostream>
 
-
 enum class EnumFlags : uint32_t {
 	flag_1 = 0x01,
 	flag_2 = 0x02,
@@ -14,7 +13,10 @@ int main()
 {
 	constexpr auto flags = EnumFlags::flag_1 | EnumFlags::flag_2;
 	static_assert(flags & EnumFlags::flag_1);
+
+	// switch operands
 	static_assert(!(EnumFlags::flag_8 & flags));
+	static_assert(!(flags & EnumFlags::flag_8));
 
 	return 0;
 }

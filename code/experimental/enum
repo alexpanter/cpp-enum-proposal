@@ -101,6 +101,50 @@ namespace std
 	// };
 	// using enum_iterator = std::contiguous_iterator<E>;
 
+	template<std::scoped_enum T>
+	requires std::is_unsigned_v<std::enum_type_t<T>>
+	class enum_bitmask
+	{
+		using type = std::enum_type_t<T>;
+	public:
+		inline enum_bitmask() { t = type{0}; }
+		inline constexpr enum_bitmask(T _t) { t = std::enum_value<T>(_t); }
+		inline constexpr enum_bitmask(enum_bitmask& b) { t = b.t; }
+		inline enum_bitmask& operator= (T _t)
+		{
+			t = std::enum_value<T>(_t); return *this;
+		}
+
+		inline bool empty() { return t == type{0}; }
+		inline void add_flag(T _t) { t |= std::enum_value<T>(_t); }
+		inline bool has_flag(T _t) { return t & std::enum_value<T>(_t); }
+		inline void clear() { t = type{0}; }
+
+		inline constexpr bool operator& (T _t) const
+		{
+			return t & std::enum_value<T>(_t);
+		}
+
+		inline constexpr enum_bitmask operator| (T _t) const
+		{
+			return static_cast<T>(t | std::enum_value<T>(_t));
+		}
+
+		inline enum_bitmask& operator|=(T _t)
+		{
+			t |= std::enum_value<T>(_t); return *this;
+		}
+		inline constexpr type operator()() const
+		{
+			return t;
+		}
+
+		inline bool operator== (const enum_bitmask& b) { return t == b.t; }
+
+	private:
+		std::enum_type_t<T> t;
+	};
+
 }
 
 // =============================== //
@@ -122,9 +166,15 @@ std::weak_ordering operator<=>(T s, T t)
 // === BITFLAG operations === //
 // ========================== //
 template<std::scoped_enum T>
-constexpr std::enum_type_t<T> operator| (T s, T t)
+constexpr std::enum_bitmask<T> operator| (T s, T t)
 {
-	return std::enum_type_t<T>(s) | std::enum_type_t<T>(t);
+	return std::enum_bitmask(s) | t;
+}
+
+template<std::scoped_enum T>
+constexpr bool operator& (T _t, const std::enum_bitmask<T>& b)
+{
+	return b() & std::enum_value<T>(_t);
 }
 
 template<std::scoped_enum T>

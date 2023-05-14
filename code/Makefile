@@ -2,6 +2,9 @@ GCC=g++-12
 FLG=-std=c++23
 HDR=experimental/enum
 
+all: test1 test2 color_map iterate1 compare_enums bitflag_enums \
+	bitflag_type bounds_checking bitflag_class
+
 test1: test1.cpp ${HDR}
 	${GCC} ${FLG} $< -o $@
 
