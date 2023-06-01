@@ -26,6 +26,12 @@ enum class ShaderType : unsigned int {
 
 int main()
 {
+	constexpr std::enum_bitmask<MyBitflag> test2;
+	static_assert(test2.empty());
+
+	constexpr std::enum_bitmask<MyBitflag> test3 = MyBitflag::val_1 | MyBitflag::val_2 | MyBitflag::val_3;
+	static_assert(test3.has_flag(MyBitflag::val_1));
+
 	std::enum_bitmask<MyBitflag> test;
 	std::cout << "std::enum_bitmask<MyBitflag> test;\n";
 	std::cout << "test.empty(): " << std::boolalpha << test.empty() << "\n\n";

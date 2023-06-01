@@ -114,7 +114,7 @@ namespace std
 	{
 		using type = std::enum_type_t<T>;
 	public:
-		inline enum_bitmask() { t = type{0U}; }
+		inline constexpr enum_bitmask() { t = type{0U}; }
 		inline constexpr enum_bitmask(T _t) { t = std::enum_value<T>(_t); }
 		inline constexpr enum_bitmask(enum_bitmask& b) { t = b.t; }
 		inline enum_bitmask& operator= (T _t)
@@ -122,9 +122,9 @@ namespace std
 			t = std::enum_value<T>(_t); return *this;
 		}
 
-		inline bool empty() { return t == type{0U}; }
+		inline constexpr bool empty() const { return t == type{0U}; }
 		inline void add_flag(T _t) { t |= std::enum_value<T>(_t); }
-		inline bool has_flag(T _t) { return t & std::enum_value<T>(_t); }
+		inline constexpr bool has_flag(T _t) const { return t & std::enum_value<T>(_t); }
 		inline void clear() { t = type{0U}; }
 
 		inline constexpr bool operator& (T _t) const
