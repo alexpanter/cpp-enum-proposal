@@ -52,7 +52,7 @@
   breaklines=true,
   columns=fullflexible,
   escapeinside={\%},
-  frame=none,
+  frame=single,
   backgroundcolor=\color{backgroundblue},
   showspaces=false,
   keepspaces=true,
@@ -70,10 +70,11 @@
 % horizontal line, used below a listing
 \newcommand{\lstline}{\vspace{-3mm}\hrulefill\vspace{2mm}\newline}
 
-
 % fancy insert listing command
 % example of usage: `\customlisting{FSharp}{Some Function}{<file.fsx>}`
 \newcommand{\customlisting}[3]{\lstinputlisting[language=#1,name=#2]{#3}\lstline}
+
+\newcommand{\beforecodespace}{\vspace{4mm}}
 
 
 % Insert the code, e.g. from a file like this:
@@ -88,7 +89,7 @@
                 struct, private, protected, public, enum, const, char, case,
                 default, return, switch, template, constexpr, noexcept, auto,
                 typename, namespace, concept, static, unsigned, consteval,
-                long},
+                long, using},
   keywordstyle=\color{bluekeywords},
   morecomment=[l][\color{greencomments}]{///},
   morecomment=[l][\color{greencomments}]{//},
@@ -589,63 +590,145 @@ static_assert((MyScopedEnum::value_2 <=> 1) > 0);
 \end{lstlisting}
 
 
-\subsection{Enum as bit flag}
+\subsection{Enum as bitmask}
 
-It may be desireable to have the option to specify a scoped enum type as a bit flag,
-so that its values may be used to create bitmasks. In other words, we want a syntax
-which allows a use case like this:\vspace{2mm}
+Bitmasking enums is a larger topic, one that has always been kind of awkward.
+We can easily use C-style enums and directly mask them because they are integers,
+but this approach provides no safety guarantees. The following example shows such
+an awkward example:
 
-\begin{lstlisting}[language=Cpp]
-enum class MemoryUsageFlag {
-    device_local, host_visible, host_coherent, host_cached, lazily_allocated, is_protected
-};
+\beforecodespace\begin{lstlisting}[language=Cpp]
+enum MyUnscopedEnum { val_0 = 0, val_1 = 1, val_4 = 4 };
+enum AnotherUnscopedEnum { val_5 = 5, val_6 = 6 };
 
-auto memFlags = MemoryUsageFlag::device_local
-              | MemoryUsageFlag::lazily_allocated; // <-- Error: No operator defined.
+// C++20 deprecates this, but for earlier versions (<= 17) it is valid.
+int m = val_0 | val_5;
 \end{lstlisting}
 
 \noindent
-But this is not currently possible without the use of \texttt{static\_cast}. And so
-this proposal defines some overloaded bitwise operators, so that scoped enums may be
-used as bit flags in a way that is \underline{type safe} and fully supported by the
-language:\vspace{2mm}
+At least, this is the output from GCC (I have not tested with other compilers!).
+But we can improve upon the type safety a bit by using a scoped enum instead.
+But now we have another awkward problem - we must statically cast to underlying
+type before using the bitwise operator:
 
-\begin{lstlisting}[language=Cpp]
-template<std::scoped_enum T>
-constexpr std::enum_type_t<T> operator| (T s, T t)
-{
-    return std::enum_type_t<T>(s) | std::enum_type_t<T>(t);
-}
+\beforecodespace\begin{lstlisting}[language=Cpp]
+enum class MyScopedEnum { val_0 = 0, val_1 = 1, val_4 = 4 };
+enum class AnotherScopedEnum { val_5 = 5, val_6 = 6 };
 
-template<std::scoped_enum T>
-constexpr bool operator& (std::enum_type_t<T> f, T t)
-{
-    return f & std::enum_value(t);
-}
+int p = MyScopedEnum::val_0 | AnotherScopedEnum::val_5; // error: no match for 'operator|'
+int q = static_cast<int>(MyScopedEnum::val_0) | static_cast<int>(AnotherScopedEnum::val_5); // valid
+int q = std::enum_value(MyScopedEnum::val_0) | std::enum_value(AnotherScopedEnum::val_5); // same
+\end{lstlisting}
 
+We could define an \texttt{operator|} as suggested by the compiler, but then we are
+left with another very awkward problem:
+
+\beforecodespace\begin{lstlisting}[language=Cpp]
 template<std::scoped_enum T>
-constexpr bool operator& (T t, std::enum_type_t<T> f)
-{
-    return std::enum_value(t) & f;
+constexpr ?? operator| (T t1, T t2) {
+    std::enum_type_t<T> result = std::enum_value<T>(t1) | std::enum_value<T>(t2);
+    return ??
 }
 \end{lstlisting}
 
 \noindent
-These operators allow for \underline{compile-time} checks through \texttt{static\_cast},
-and lets us use scoped enums as fully type-safe bitmasking operands. Exemplified:\vspace{2mm}
+Now we don't know which type to return - there are two options, and both of them are
+bad. If we return the underlying (integer) type then we bypass type safety, and if
+we return the same enum type then we return a value that should not exist:
 
-\begin{lstlisting}[language=Cpp]
-enum class EnumFlags : uint32_t {
-    flag_1 = 0x01,
-    flag_2 = 0x02,
-    flag_4 = 0x04,
-    flag_8 = 0x08
+\beforecodespace\begin{lstlisting}[language=Cpp]
+enum class MyFlags : int { val_1 = 0x01, val_2 = 0x02, val_4 = 0x04, val_8 = 0x08 };
+
+MyFlags f1 = MyFlags::val_1 | MyFlags::val_2; // This is not a valid 'MyFlags' !
+int f2 = MyFlags::val_1 | MyFlags::val_2 | MyFlags::val_4; // Problematic!
+\end{lstlisting}
+
+The second case in particular is problematic, because it bypasses type safety.
+When I tested this I found that my compiler evaluates from right to left, that is
+it will evaluate "\texttt{val\_1 | (val\_2 | val\_4)}". But whatever the case, if
+the operator returns an integer, then we must define another operator which takes
+as arguments a scoped enum and an integer, and that enables us to pass to it any
+integer, like $-1$!
+
+\noindent
+Both choices yield bad code, or at the very least \textit{unsafe} code, and it would
+be far better if the process of bitmasking enums could be automated in a way that
+is type safe, practical, without overhead, and adheres to the general design
+philosophies of the standard library. It would also be very nice if the operators
+supported \texttt{constexpr}. The first solution that comes to mind is to create
+a class. The solution might not be perfect, and likely needs some adjusting, but
+it does solve the problems described above while being relatively easy to use:
+
+\beforecodespace\begin{lstlisting}[language=Cpp]
+template<typename T>
+requires enum_bitmask_type<T>
+class enum_bitmask {
+    using type = std::enum_type_t<T>;
+
+public:
+    bool empty();
+    void add_flag(T _t);
+    bool has_flag(T _t);
+    void clear();
+
+    type operator()();
+    bool operator& (T _t);
+    enum_bitmask operator| (T _t);
+    enum_bitmask& operator|= (T _t);
+    bool operator== (enum_bitmask& b);
+
+private:
+    type t {0U};
+};
+\end{lstlisting}
+
+This class may be implemented in roughly 50 lines of code, plus some additional
+operators for parameter switching. Below is a short code snippet (which has been
+tested) that showcases some example usage:
+
+\beforecodespace\begin{lstlisting}[language=Cpp]
+enum class MyBitflag : unsigned int {
+    val_1 = 0x01U, val_2 = 0x02U, val_4 = 0x04U, val_8 = 0x08U
 };
 
-constexpr auto flags = EnumFlags::flag_1 | EnumFlags::flag_2;
-static_assert(flags & EnumFlags::flag_1);
-static_assert(!(EnumFlags::flag_8 & flags));
+constexpr std::enum_bitmask<MyBitflag> test1;
+static_assert(test1.empty());
+
+constexpr std::enum_bitmask<MyBitflag> test2 =
+    MyBitflag::val_1 | MyBitflag::val_2 | MyBitflag::val_4 | MyBitflag::val_8;
+static_assert(test2.has_flag(MyBitflag::val_4));
 \end{lstlisting}
+
+
+\noindent
+The examples are hopefully enough to express the \textit{intent} of the class.
+The full implementation is included in the \underline{appendix}(REF??!).
+The way the class and its operators are designed allow for \underline{compile-time}
+checks through \texttt{static\_cast}, and lets us use scoped enums as fully type-safe
+bitmasking operands.
+
+The four public member functions
+provide an interface that is easy to read and use, and by using a template we omit
+the penalties of vtable lookups. The templated type which must be a scoped enum is
+verified by a "concept", because additional constraints should be placed upon usage
+of the class. One such constraint would be to check that the scoped enum used does
+not have a value that is zero:
+
+\beforecodespace\begin{lstlisting}[language=Cpp]
+template<scoped_enum T>
+struct enum_contains_zero {
+    static constexpr bool value; // Should be implemented in the compiler!
+};
+
+template<scoped_enum E>
+using enum_contains_zero_v = std::enum_contains_zero<E>::value;
+\end{lstlisting}
+
+\noindent
+Another constraint might be to require that the underlying type of the enum is
+unsigned, unless that would yield some platform-specific problems (I'm not sure!).
+
+
 
 
 
