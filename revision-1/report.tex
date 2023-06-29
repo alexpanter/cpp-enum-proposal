@@ -500,10 +500,9 @@ And this leads us to the next topic..
 \subsection{Enum bounds checking}
 
 It's annoying to write the statement in \texttt{my\_function} above, so there
-should also be a shorthand notation for that, thusly proposed:
+should also be a shorthand notation for that, thusly proposed:\vspace{2mm}
 
 \begin{lstlisting}[language=Cpp]
-
 enum class EShSource : int {
     EShSourceNone = 0, EShSourceGlsl, EShSourceHlsl
 };
@@ -516,9 +515,30 @@ void my_function(EShSource e) {
 \end{lstlisting}
 
 \noindent
-\textbf{NOTE: We absolutely MUST test that enums are not given custom values, ie.
-only default in range [0, cardinality-1], OTHERWISE bounds checking cannot work properly!}
+This has multiple obvious problems that \textit{may or may not} be addressed by
+this proposal. First of, if the enum is defined with an unsigned integer type, then
+we obviously cannot compare its value to 0 like we do above. Secondly, how can we
+ensure that all the values in the enumeration are sequential? If the enumeration is
+intended to be used for bitmasking operations, then the values might be defined as
+powers of two instead of sequential integers, yielding a comparison that does not
+make logical sense.
 
+A potential solution to this problem, if we wish to avoid throwing an exeption, is
+to replicate the "try-convert" pattern found in other languages such as C\#.
+Exemplified:\vspace{2mm}
+
+\begin{lstlisting}[language=Cpp]
+bool enum_try_conver
+enum class EShSource : int {
+    EShSourceNone = 0, EShSourceGlsl, EShSourceHlsl
+};
+
+void my_function(EShSource e) {
+    if (std::enum_value(e) < 0 || std::enum_value(e) >= std::enum_cardinality_v<EShSource>) {
+        // report an error...
+    }
+}
+\end{lstlisting}
 
 
 \subsection{Enum position}
@@ -702,7 +722,7 @@ static_assert(test2.has_flag(MyBitflag::val_4));
 
 \noindent
 The examples are hopefully enough to express the \textit{intent} of the class.
-The full implementation is included in the \underline{appendix}(REF??!).
+The full implementation is included in section~\ref{proposed-notation-summary}.
 The way the class and its operators are designed allow for \underline{compile-time}
 checks through \texttt{static\_cast}, and lets us use scoped enums as fully type-safe
 bitmasking operands.
@@ -733,6 +753,7 @@ unsigned, unless that would yield some platform-specific problems (I'm not sure!
 
 
 \section{Proposed Notation Summary}
+\label{proposed-notation-summary}
 
 In summary, there's a lot of new features that would \textit{significantly} improve
 the usage of scoped enums. Some of these may be implemented as library features,
@@ -742,42 +763,128 @@ defined are dependent upon \texttt{std::is\_scoped\_enum}, C++23 is the
 of the function and meta-function signatures are listed here:\vspace{2mm}
 
 \begin{lstlisting}[language=Cpp]
+// header: enum
+// #include <enum>
 #include <type_traits>
 
 namespace std {
+    // ============================ //
+    // === CONCEPT: scoped_enum === //
+    // ============================ //
     template<typename T>
     concept scoped_enum = std::is_scoped_enum_v<T>;
 
+    // ================================= //
+    // === VALUE: enum_cardinality_v === //
+    // ================================= //
     template<scoped_enum E>
-    struct enum_cardinality {
-        static constexpr std::size_t value; // Implementation-defined
+    struct enum_cardinality
+    {
+        static constexpr std::size_t value = /* compiler-generated (recursive) magic here */ 1;
     };
 
     template<scoped_enum E>
     std::size_t enum_cardinality_v = std::enum_cardinality<E>::value;
 
+    // ============================== //
+    // === VALUE: enum_position_v === //
+    // ============================== //
     template<std::scoped_enum T, T E>
     struct enum_position {
-        static constexpr std::size_t value = 0; // Implementation-defined
+        // TODO: Perhaps we _can_ actually use some template meta-programming to do this?
+        static constexpr std::size_t value = 0; // <-- compiler implements this
     };
 
     template<std::scoped_enum T, T E>
     std::size_t enum_position_v = std::enum_position<T, E>::value;
 
+    // ========================= //
+    // === TYPE: enum_type_t === //
+    // ========================= //
     template<scoped_enum E>
-    struct enum_type {
+    struct enum_type
+    {
         using type = std::underlying_type<E>::type;
     };
+
+    // NOTE: Since C++23 we have std::to_underlying :
+    // template<class Enum>
+    // constexpr std::underlying_type_t<Enum> to_underlying(Enum e);
+    // This is equivalent to:
+    // return static_cast<std::underlying_type_t<Enum>>(e);
 
     template<scoped_enum E>
     using enum_type_t = std::enum_type<E>::type;
 
+    // ========================= //
+    // === VALUE: enum_value === //
+    // ========================= //
     template<scoped_enum Enum>
-    constexpr std::enum_type_t<Enum> enum_value(Enum e) noexcept {
+    constexpr std::enum_type_t<Enum> enum_value(Enum e) noexcept
+    {
         return static_cast<std::enum_type_t<Enum>>(e);
     }
+
+    // =========================== //
+    // === CLASS: enum_bitmask === //
+    // =========================== //
+    template<typename T>
+    concept scoped_enum_no_zero = true; // ...
+
+    template<typename T>
+    concept enum_bitmask_type =
+        std::scoped_enum<T>
+        && std::is_unsigned_v<std::enum_type_t<T>>
+        && scoped_enum_no_zero<T>;
+
+    template<typename T>
+    requires enum_bitmask_type<T>
+    class enum_bitmask
+    {
+        using type = std::enum_type_t<T>;
+    public:
+        inline constexpr enum_bitmask() { t = type{0U}; }
+        inline constexpr enum_bitmask(T _t) { t = std::enum_value<T>(_t); }
+        inline constexpr enum_bitmask(enum_bitmask& b) { t = b.t; }
+        inline enum_bitmask& operator= (T _t)
+        {
+            t = std::enum_value<T>(_t); return *this;
+        }
+
+        inline constexpr bool empty() const { return t == type{0U}; }
+        inline void add_flag(T _t) { t |= std::enum_value<T>(_t); }
+        inline constexpr bool has_flag(T _t) const { return t & std::enum_value<T>(_t); }
+        inline void clear() { t = type{0U}; }
+
+        inline constexpr bool operator& (T _t) const
+        {
+            return t & std::enum_value<T>(_t);
+        }
+
+        inline constexpr enum_bitmask operator| (T _t) const
+        {
+            return static_cast<T>(t | std::enum_value<T>(_t));
+        }
+
+        inline enum_bitmask& operator|=(T _t)
+        {
+            t |= std::enum_value<T>(_t); return *this;
+        }
+        inline constexpr type operator()() const
+        {
+            return t;
+        }
+
+        inline bool operator== (const enum_bitmask& b) { return t == b.t; }
+
+    private:
+        std::enum_type_t<T> t {0U};
+    };
 } // namespace std
 
+// =============================== //
+// === COMPARISON: operator<=> === //
+// =============================== //
 template<std::scoped_enum T>
 constexpr std::weak_ordering operator<=>(T t, std::integral auto i)
 {
@@ -790,10 +897,19 @@ std::weak_ordering operator<=>(T s, T t)
     return std::enum_value(s) <=> std::enum_value(t);
 }
 
+// ========================== //
+// === BITFLAG operations === //
+// ========================== //
 template<std::scoped_enum T>
-constexpr std::enum_type_t<T> operator| (T s, T t)
+constexpr std::enum_bitmask<T> operator| (T s, T t)
 {
-    return std::enum_type_t<T>(s) | std::enum_type_t<T>(t);
+    return std::enum_bitmask(s) | t;
+}
+
+template<std::scoped_enum T>
+constexpr bool operator& (T _t, const std::enum_bitmask<T>& b)
+{
+    return b() & std::enum_value<T>(_t);
 }
 
 template<std::scoped_enum T>
@@ -807,6 +923,7 @@ constexpr bool operator& (T t, std::enum_type_t<T> f)
 {
     return std::enum_value(t) & f;
 }
+
 \end{lstlisting}
 
 
@@ -831,6 +948,25 @@ meta-functions, with the use of modern C++ features such as \texttt{concepts} an
 
 \section{Acknowledgements}
 
+Thanks to \textbf{Francesco Pretto} for suggesting the feature of bitmasking enums.
+I took the advice and added it to this proposal following the initial post.
+
+\noindent
+Thanks to \textbf{Maxime Coste} for commenting on the "reflection proposal" probably
+being the current direction for fixing the issues with enums which inspired this writing.
+Since I'm unsure what the reflection is going to fix or not, I decided to write this
+proposal anyways. Likely, and indeed hopefully, the reflection may be used to
+implement some of the features suggested here.
+
+\noindent
+Thanks to \textbf{Jason McKesson} for suggesting consteval'd fixed-sized arrays created
+by the compiler instead of defining an enum iterator and the enum to string functionality
+suggested here. I agree that it would be simpler, but I also think it would end up
+resulting in many programmers defining their own constructs instead of them being
+in the standard library. My opinion may be flawed, but I appreciate the feedback
+nonetheless.
+
+
 \section{References}
 
 
@@ -840,4 +976,3 @@ meta-functions, with the use of modern C++ features such as \texttt{concepts} an
 %% \bibliography{references}
 
 \end{document}
-
