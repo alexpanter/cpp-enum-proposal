@@ -132,11 +132,11 @@ this proposal is to gain feedback and insights, which may then be used for furth
 revisions.
 
 \noindent
-Note: This proposal targets only \underline{scoped enums}, and does not provide any
+\textbf{Note:} This proposal targets only \underline{scoped enums}, and does not provide any
 effort to address \textit{unscoped} enums.
 
 \vspace{2mm}\noindent
-Given my limited experience (actually: none) in writing C++ proposals, I know what I
+Given my limited experience (ie. none) in writing C++ proposals, I know what I
 \underline{would like} the proposal to address and introduce to the core language,
 but not necessarily \underline{how it should be done}. The suggested notations
 provided are, thus, merely suggestions - and not concrete proposals for a concious
@@ -195,8 +195,8 @@ for this proposal \textit{compile-time}, with no risk of throwing exceptions or 
 any other runtime mechanism.
 
 This, at least was the aim. Added is one particular \textit{exception} to this,
-where we try to convert to a scoped enum from its underlying type. This will be
-described in detail.
+where we try to convert to a scoped enum from its underlying type. This may not
+neccessarily be possible to achieve compile-time, and will be described in detail.
 
 
 \section{Impact on the Standard}
@@ -241,10 +241,8 @@ namespace std {
     constexpr std::string_view enum_str(T t) { /* compiler implements this */ }
 }
 
-std::cout << std::enum_str<GraphicsApiType::opengl>() << std::endl;
-// --> "opengl"
-std::cout << std::enum_str_full<GraphicsApiType::opengl>() << std::endl;
-// "graphics::GraphicsApiType::opengl"
+std::cout << std::enum_str<GraphicsApiType::opengl>() << std::endl;      // "opengl"
+std::cout << std::enum_str_full<GraphicsApiType::opengl>() << std::endl; // "GraphicsApiType::opengl"
 \end{lstlisting}
 
 \noindent
@@ -254,7 +252,7 @@ also worth considering what notation is \textit{optimal}. In the example above, 
 have a templated function which return a \texttt{constexpr} string representation.
 
 \vspace{2mm}\noindent
-Note: I am unsure how best to write this.
+\textbf{Note:} I am unsure how best to write this.
 
 
 \subsection{Obtain the underlying type}
@@ -278,6 +276,7 @@ using enum_type_t = std::enum_type<E>::type;
 // Try it out:
 enum class Color : int { red, green, blue, yellow };
 std::enum_type_t<Color> yellow = Color::yellow;
+static_assert(std::is_same_v<std::enum_type_t<Color>, int>);
 \end{lstlisting}
 
 The benefit of this meta-function, as opposed to \texttt{std::to\_underlying}, is
@@ -298,7 +297,6 @@ addresses the need for obtaining the underlying value of a scoped enum value:\vs
 template<scoped_enum Enum>
 constexpr std::enum_type_t<Enum> enum_value(Enum e) noexcept
 {
-    // TODO: Error - use enum_cast instead!
     return static_cast<std::enum_type_t<Enum>>(e);
 }
 \end{lstlisting}
@@ -346,9 +344,19 @@ consteval T enum_cast(std::enum_type_t<T> t) {
 }
 \end{lstlisting}
 
+\noindent
+\textbf{NOTE:} I am unsure of the best naming here, because the word "cast" does
+not strictly enforce either compile-time or runtime behaviour. One might argue
+that \texttt{enum\_cast} should be completely runtime and throw an exception,
+and this proposal might be rewritten if such an opinion is present.
+
 
 \subsection{IMPROVED Safe enum conversion (language feature)}
 
+A \underline{alternative} to the \texttt{enum\_cast} suggested previously, we
+could also extent \texttt{static\_cast} to correctly enforce compile-time check
+of underlying type to enum conversion, and then instead reserve \texttt{enum\_cast}
+for purely runtime purposes. This suggested, alternative suggestion is shown below:
 
 
 %% NOTE: Borrowed from:
@@ -395,10 +403,12 @@ MyScopedEnum e = static_cast<MyScopedEnum>(4);
 \end{tabular}
 \end{center}
 
+\noindent
+\textbf{NOTE:} This might be the best option. I will let feedback guide this
+decision.
 
 
-
-\subsection{Iterating through a scoped enum}
+\subsection{Iterating through a scoped enum (language feature)}
 
 Another interesting scenario is if an enum contains "identifiers", where for each we
 want to create some data structure and add that to some general storage. An example
@@ -421,8 +431,9 @@ private:
 };
 \end{lstlisting}
 
-We can then obtain a "bi-directional" iterator, which allows us to iterate through
-all values in the enumeration and add them to the storage:\vspace{2mm}
+We can then obtain an (possibly \textit{random-access}) iterator, which allows
+us to iterate through all values in the enumeration and add them to the
+storage:\vspace{2mm}
 
 \begin{lstlisting}[language=Cpp]
 void fill(EnumMap<auto T, auto V>& em) {
@@ -430,6 +441,11 @@ void fill(EnumMap<auto T, auto V>& em) {
         em.add value(t, V{});
 }
 \end{lstlisting}
+
+\noindent
+\textbf{NOTE:} I have absolutely no idea how this implementation could be achieved,
+but I strongly suspect that it requires one or more modifications to the standard,
+and probably also extended parsing rules.
 
 
 \subsection{Enum Cardinality}
@@ -449,7 +465,7 @@ typedef enum {
 
 Granted, this is a \texttt{C} library, but the use case for \texttt{C++} would be
 identical. And it would likely be used for validating the input because \texttt{enums}
-are unsafe:\vspace{2mm}
+are unsafe (even though the code is still unsafe!):\vspace{2mm}
 
 \begin{lstlisting}[language=Cpp]
 void my_function(EShSource e) {
@@ -479,66 +495,12 @@ static_assert(std::enum_cardinality_v<Weekday> == 7);
 \end{lstlisting}
 
 \noindent
-The example from before could be written, then, in a manner both type safe and
-value safe, with no scope leakage:\vspace{2mm}
-
-\begin{lstlisting}[language=Cpp]
-enum class EShSource : int {
-    EShSourceNone = 0, EShSourceGlsl, EShSourceHlsl
-};
-
-void my_function(EShSource e) {
-    if (std::enum_value(e) < 0 || std::enum_value(e) >= std::enum_cardinality_v<EShSource>) {
-        // report an error...
-    }
-}
-\end{lstlisting}
-
-And this leads us to the next topic..
-
-
-\subsection{Enum bounds checking}
-
-It's annoying to write the statement in \texttt{my\_function} above, so there
-should also be a shorthand notation for that, thusly proposed:\vspace{2mm}
-
-\begin{lstlisting}[language=Cpp]
-enum class EShSource : int {
-    EShSourceNone = 0, EShSourceGlsl, EShSourceHlsl
-};
-
-void my_function(EShSource e) {
-    if (std::enum_value(e) < 0 || std::enum_value(e) >= std::enum_cardinality_v<EShSource>) {
-        // report an error...
-    }
-}
-\end{lstlisting}
-
-\noindent
-This has multiple obvious problems that \textit{may or may not} be addressed by
-this proposal. First of, if the enum is defined with an unsigned integer type, then
-we obviously cannot compare its value to 0 like we do above. Secondly, how can we
-ensure that all the values in the enumeration are sequential? If the enumeration is
-intended to be used for bitmasking operations, then the values might be defined as
-powers of two instead of sequential integers, yielding a comparison that does not
-make logical sense.
-
-A potential solution to this problem, if we wish to avoid throwing an exeption, is
-to replicate the "try-convert" pattern found in other languages such as C\#.
-Exemplified:\vspace{2mm}
-
-\begin{lstlisting}[language=Cpp]
-bool enum_try_conver
-enum class EShSource : int {
-    EShSourceNone = 0, EShSourceGlsl, EShSourceHlsl
-};
-
-void my_function(EShSource e) {
-    if (std::enum_value(e) < 0 || std::enum_value(e) >= std::enum_cardinality_v<EShSource>) {
-        // report an error...
-    }
-}
-\end{lstlisting}
+\textbf{NOTE:} An argument can be made for extending \texttt{enum\_cardinality}
+to also work for \textit{unscoped} enums, which at the very least could be used
+to then improve the error check from the \texttt{glslang} code if it was placed
+in a C++ context. This would be an alternative to simply replacing
+\texttt{EShSource} with a scoped enum, which with this proposal in mind would
+completely remove the need for the bounds error check.
 
 
 \subsection{Enum position}
@@ -610,7 +572,7 @@ static_assert((MyScopedEnum::value_2 <=> 1) > 0);
 \end{lstlisting}
 
 
-\subsection{Enum as bitmask}
+\subsection{Enum as bitmask (potentially has a new language feature)}
 
 Bitmasking enums is a larger topic, one that has always been kind of awkward.
 We can easily use C-style enums and directly mask them because they are integers,
@@ -637,7 +599,7 @@ enum class AnotherScopedEnum { val_5 = 5, val_6 = 6 };
 
 int p = MyScopedEnum::val_0 | AnotherScopedEnum::val_5; // error: no match for 'operator|'
 int q = static_cast<int>(MyScopedEnum::val_0) | static_cast<int>(AnotherScopedEnum::val_5); // valid
-int q = std::enum_value(MyScopedEnum::val_0) | std::enum_value(AnotherScopedEnum::val_5); // same
+auto q = std::enum_value(MyScopedEnum::val_0) | std::enum_value(AnotherScopedEnum::val_5); // same
 \end{lstlisting}
 
 We could define an \texttt{operator|} as suggested by the compiler, but then we are
@@ -664,38 +626,35 @@ int f2 = MyFlags::val_1 | MyFlags::val_2 | MyFlags::val_4; // Problematic!
 \end{lstlisting}
 
 The second case in particular is problematic, because it bypasses type safety.
-When I tested this I found that my compiler evaluates from right to left, that is
-it will evaluate "\texttt{val\_1 | (val\_2 | val\_4)}". But whatever the case, if
-the operator returns an integer, then we must define another operator which takes
-as arguments a scoped enum and an integer, and that enables us to pass to it any
-integer, like $-1$!
+If the operator returns an integer, then we must define another operator which
+takes as arguments a scoped enum and an integer, and that enables us to pass to
+it any integer, like $-1$!
 
 \noindent
-Both choices yield bad code, or at the very least \textit{unsafe} code, and it would
-be far better if the process of bitmasking enums could be automated in a way that
-is type safe, practical, without overhead, and adheres to the general design
-philosophies of the standard library. It would also be very nice if the operators
-supported \texttt{constexpr}. The first solution that comes to mind is to create
-a class. The solution might not be perfect, and likely needs some adjusting, but
-it does solve the problems described above while being relatively easy to use:
+Both choices yield bad code, or at the very least \textit{unsafe} code, and it
+would be far better if the process of bitmasking enums could be automated in a
+way that is type safe, practical, without or with limited runtime overhead, and
+adheres to the general design philosophies of the standard library. It would
+also be very nice if the operators supported \texttt{constexpr}. The first
+solution that comes to mind is to create a class. The solution might not be
+perfect, and likely needs some adjusting, but it does solve the problems
+described above while being relatively easy to use:
 
 \beforecodespace\begin{lstlisting}[language=Cpp]
 template<typename T>
-requires enum_bitmask_type<T>
+concept enum_valid_bitmask_type = ... // type should be restricted
+
+template<typename T>
+requires enum_valid_bitmask_type<T>
 class enum_bitmask {
     using type = std::enum_type_t<T>;
 
 public:
-    bool empty();
+    constexpr bool empty();
     void add_flag(T _t);
-    bool has_flag(T _t);
+    constexpr bool has_flag(T _t);
     void clear();
-
-    type operator()();
-    bool operator& (T _t);
-    enum_bitmask operator| (T _t);
-    enum_bitmask& operator|= (T _t);
-    bool operator== (enum_bitmask& b);
+    // operators and constructors omitted here
 
 private:
     type t {0U};
@@ -721,9 +680,9 @@ static_assert(test2.has_flag(MyBitflag::val_4));
 
 
 \noindent
-The examples are hopefully enough to express the \textit{intent} of the class.
+The examples are hopefully enough to express the intent of the class.
 The full implementation is included in section~\ref{proposed-notation-summary}.
-The way the class and its operators are designed allow for \underline{compile-time}
+The way the class and its operators are designed allow for \textit{compile-time}
 checks through \texttt{static\_cast}, and lets us use scoped enums as fully type-safe
 bitmasking operands.
 
@@ -732,24 +691,26 @@ provide an interface that is easy to read and use, and by using a template we om
 the penalties of vtable lookups. The templated type which must be a scoped enum is
 verified by a "concept", because additional constraints should be placed upon usage
 of the class. One such constraint would be to check that the scoped enum used does
-not have a value that is zero:
+not have a value that is zero (\underline{language feature}):
 
 \beforecodespace\begin{lstlisting}[language=Cpp]
-template<scoped_enum T>
-struct enum_contains_zero {
-    static constexpr bool value; // Should be implemented in the compiler!
+template<scoped_enum E>
+struct enum_all_nonzero
+{
+    static constexpr bool value = true; // <-- compiler implements this
 };
 
 template<scoped_enum E>
-using enum_contains_zero_v = std::enum_contains_zero<E>::value;
+bool enum_all_nonzero_v = enum_all_nonzero<E>::value;
 \end{lstlisting}
 
 \noindent
-Another constraint might be to require that the underlying type of the enum is
-unsigned, unless that would yield some platform-specific problems (I'm not sure!).
-
-
-
+\textbf{NOTE:} Another constraint might be to require that the underlying type
+of the enum is unsigned, unless that would yield some platform-specific
+problems (I'm not sure!). Also, C is notorious for its unsafe handing of 64-bit
+bit masking of enums, so it might also be desireable to restrict to maximum
+32-bit integers or whatever the platform uses for \texttt{`int`}. I don't
+\textit{think} C++ has this problem, but I'm not completely sure.
 
 
 \section{Proposed Notation Summary}
@@ -780,7 +741,7 @@ namespace std {
     template<scoped_enum E>
     struct enum_cardinality
     {
-        static constexpr std::size_t value = /* compiler-generated (recursive) magic here */ 1;
+        static constexpr std::size_t value = 0; // <-- compiler implements this
     };
 
     template<scoped_enum E>
@@ -825,17 +786,26 @@ namespace std {
         return static_cast<std::enum_type_t<Enum>>(e);
     }
 
+    // ================================ //
+    // === VALUE: enum_all_nonzero_v === //
+    // ================================ //
+    template<scoped_enum E>
+    struct enum_all_nonzero
+    {
+        static constexpr bool value = true; // <-- compiler implements this
+    };
+
+    template<scoped_enum E>
+    bool enum_all_nonzero_v = enum_all_nonzero<E>::value;
+
     // =========================== //
     // === CLASS: enum_bitmask === //
     // =========================== //
     template<typename T>
-    concept scoped_enum_no_zero = true; // ...
-
-    template<typename T>
-    concept enum_bitmask_type =
+    concept enum_valid_bitmask_type =
         std::scoped_enum<T>
         && std::is_unsigned_v<std::enum_type_t<T>>
-        && scoped_enum_no_zero<T>;
+        && std::scoped_enum_no_zero<T>; // possible definition
 
     template<typename T>
     requires enum_bitmask_type<T>
@@ -946,6 +916,10 @@ meta-functions, with the use of modern C++ features such as \texttt{concepts} an
 
 \section{Technical Specifications}
 
+I don't really know what to write here, since a complete code listing is shown
+in the previous section.
+
+
 \section{Acknowledgements}
 
 Thanks to \textbf{Francesco Pretto} for suggesting the feature of bitmasking enums.
@@ -967,10 +941,7 @@ in the standard library. My opinion may be flawed, but I appreciate the feedback
 nonetheless.
 
 
-\section{References}
-
-
-
+%% \section{References}
 
 %% \bibliographystyle{ACM-Reference-Format}
 %% \bibliography{references}
