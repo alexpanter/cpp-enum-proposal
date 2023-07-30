@@ -22,7 +22,7 @@ enum class ShaderType : unsigned int {
 	vertex_and_fragment = 0x11,
 	all_graphics        = 0x1F
 };
-
+static_assert(std::is_same_v<std::enum_type_t<ShaderType>, unsigned int>);
 
 int main()
 {
